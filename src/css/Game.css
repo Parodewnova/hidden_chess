@@ -1,0 +1,65 @@
+.errorModuleClass{
+    position: absolute;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 30px;
+    text-align: center;
+    color: red;
+}
+
+
+.t1{
+    position: relative;
+    width: 100%;
+    height: 20%;
+    border: 1px solid black;
+
+}
+
+.playerlistspan{
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.clickabletilediv{
+    position: absolute;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+    background: hsla(180, 100%, 50%, 0.356);
+    /* background: linear-gradient(45deg, #00FFFF, #1100ff);
+    background-size: 200% 200%;
+    animation: gradientShift 5s ease infinite; */
+}
+.clickabletilediv:hover{
+    background: hsla(180, 100%, 30%, 0.4);
+}
+/* @keyframes gradientShift {
+0% { background-position: 0% 50%; }
+50% { background-position: 100% 50%; }
+100% { background-position: 0% 50%; }
+} */
+
+
+.top-right-box {
+    position: fixed; /* Always stay at top right */
+    top: 20px;
+    right: 20px;
+    
+    width: 180px; /* smaller width */
+    padding: 15px;
+    
+    background-color: rgb(232, 232, 232); 
+    border: 1px solid rgba(255, 255, 255, 0.2); /* soft border */
+    border-radius: 10px;
+    backdrop-filter: blur(8px); /* slight blur */
+    
+    color: rgb(0, 0, 0);
+    font-size: 14px;
+    font-weight: 400;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); /* soft shadow */
+    text-align: center; /* center text inside */
+  }

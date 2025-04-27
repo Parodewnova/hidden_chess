@@ -1,0 +1,77 @@
+body{
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    /* display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgb(9, 31, 56); */
+}
+
+.main-title {
+    font-size: 150px;
+    font-weight: 700;
+    color: #ffffff;
+    text-shadow: 0 0 25px rgb(0, 0, 0);
+    margin-bottom: 40px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    letter-spacing: 1px;
+    text-align: center;
+  }
+
+.user-id {
+font-size: 22px;
+  font-weight: bold;
+  color: rgb(255, 255, 255);
+  text-shadow: 0 0 10px rgb(0, 0, 0);
+  margin-bottom: 12px;
+  font-family: 'Poppins', sans-serif;
+  letter-spacing: 1px;
+  text-align: center;
+  }
+
+.custom-input {
+    padding: 14px 18px;
+    width: 280px;
+    font-size: 16px;
+    color: #333;
+    background: white;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    outline: none;
+    transition: all 0.3s ease;
+  }
+  
+  /* Placeholder text */
+.custom-input::placeholder {
+    font-size: 15px;
+    color: #aaa;
+    font-style: italic;
+  }
+  
+  /* Focused input */
+.custom-input:focus {
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.3);
+    border: none;
+  }
+
+.joinbutton{
+    padding: 12px 24px;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.custom-button:hover {
+    background-color: #0056b3;
+  }
+  
+.custom-button:active {
+    transform: scale(0.97);
+  }

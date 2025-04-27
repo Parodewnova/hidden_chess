@@ -1,0 +1,203 @@
+from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse,StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, File, UploadFile, Request, Response,status, WebSocket
+from pydantic import BaseModel
+from asyncio import Lock
+
+import json
+
+
+app = FastAPI()
+allowed_origins = ["http://localhost:3000"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,  # List of allowed origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
+
+playerusernames = {
+    
+}
+
+
+gameboard_size = [5,5] # row,height
+class roomblueprint():
+    roomjson_blueprint = {
+        "leader":"",
+        "ongoing":False,
+        "players":[],
+        "max-players":2,
+        "turns":0,
+        "gameboard":{},
+        "playerstats":{}
+    }
+    def __init__(self):  # Default size or pass it in
+        # Create a deep copy of the template for this instance
+        import copy
+        self.room_data = copy.deepcopy(self.roomjson_blueprint)
+        for i in range(0,gameboard_size[0]):
+            for i2 in range(0,gameboard_size[1]):
+                self.room_data["gameboard"][f'{i}_{i2}'] = {
+                    "players":[],
+                    "status":[],
+                    "obstaces":[]
+                }
+class playerblueprint():
+    playerstats_blueprint = {
+        "tilelocation":"",
+        "visibletiles":[],
+        "status":[],
+        "ready":False
+    }
+    def __init__(self):  # Default size or pass it in
+        # Create a deep copy of the template for this instance
+        import copy
+        self.player_data = copy.deepcopy(self.playerstats_blueprint)
+
+
+registered_guests = {} #format => userID: websocket
+all_rooms = {}
+#intialise rooms
+with open("serverfiles/setRoom.json","r") as reader: 
+    roomIDs_arr = json.load(reader)["roomIDs"]
+    for id in roomIDs_arr:
+        all_rooms[id] = roomblueprint()
+
+@app.get("/joinserverrequest/{USERID}/{ROOMID}/{USERNAME}")
+async def func1(USERID:str, ROOMID:str,USERNAME:str):
+    if not ROOMID in all_rooms.keys():
+        return JSONResponse(content={"message":"not found"},status_code=200)
+    room_json = all_rooms[ROOMID].room_data
+    if(len(room_json["players"])>=room_json["max-players"]):
+        return JSONResponse(content={"message":"room full"},status_code=200)
+    room_json["players"].append(USERID)
+    registered_guests[USERID] = None
+    # add player stats
+    room_json["playerstats"][USERID] = playerblueprint()
+    # ================
+    playerusernames[USERID] = USERNAME
+    return JSONResponse(content={"message":"joined"},status_code=200)
+
+
+
+class checkvaluesmodel(BaseModel):
+    userID:str
+    roomID:str
+@app.post("/checkvalidvalues")
+async def func2(model:checkvaluesmodel):
+    userID = model.userID
+    roomID = model.roomID
+
+    if not roomID in all_rooms.keys():
+        return JSONResponse(content={"error":"invalid room"})
+    
+    if not userID in all_rooms[roomID].room_data["players"]:
+        return JSONResponse(content={"error":"invalid player"})
+    
+    return JSONResponse(content={"width":gameboard_size[0],"height":gameboard_size[1]})
+
+async def deliverMessageToClient(clients,message_json):
+    for client in clients:
+        await registered_guests[client].send_json(message_json)
+
+@app.websocket("/clientSOCKET/{userID}/{lobbyID}")
+async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
+    await websocket.accept()
+    registered_guests[userID] = websocket
+    
+    if(len(all_rooms[lobbyID].room_data["players"])==1):
+        all_rooms[lobbyID].room_data["leader"] = userID
+    await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
+        "leader":all_rooms[lobbyID].room_data["leader"],
+        "ongoing":all_rooms[lobbyID].room_data["ongoing"],
+        "event":["update-player-list","update-player-gameboard"]
+    })
+    try:
+        while True:
+            data = await websocket.receive_text()
+            print(data)
+            # Process received message
+            
+            # Send response back to client
+            #await websocket.send_text(f"Echo: {data}")
+    except Exception as e:
+        a = 2
+    finally:
+        # delete from registered and the lobby
+        del registered_guests[userID]
+        all_rooms[lobbyID].room_data["players"].remove(userID)
+        for player in all_rooms[lobbyID].room_data["players"]:
+            all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"] = False
+        try:
+            all_rooms[lobbyID].room_data["leader"] = all_rooms[lobbyID].room_data["players"][0]
+            await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
+                "leader":all_rooms[lobbyID].room_data["leader"],
+                "ongoing":all_rooms[lobbyID].room_data["ongoing"],
+                "event":["update-player-list"]
+            })
+        except:
+            a = 2
+
+@app.post("/api-game/userready/{lobby_ID}")
+async def funcapi1(lobby_ID: str, request:Request):
+    raw_body = await request.body()  # Get raw bytes
+    body_json = json.loads(raw_body.decode())
+
+    user_ID = body_json["userID"]
+    mode = body_json["mode"]
+    readystate = body_json["readystate"]
+
+    allplayers = all_rooms[lobby_ID].room_data["players"]
+    if(len(allplayers)!=2):
+        return
+    json_data = {}
+    for player in allplayers:
+        if(player==user_ID):
+            all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["ready"] = readystate
+        json_data[player] = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]
+        if(mode=="initialise"): # set player starting tile
+            all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["tilelocation"] = body_json["tile"]
+
+    await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+        "leader":all_rooms[lobby_ID].room_data["leader"],
+        "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+        "event":["toggle-start-button"]
+    })
+@app.get("/api-game/fetchplayerlist/{lobby_id}")
+async def funcapi2(lobby_id:str):
+    json_data = {
+        "players":all_rooms[lobby_id].room_data["players"]
+    }
+    for player in json_data["players"]:
+        playerjson = {
+            "username": playerusernames[player],
+            "readystate":all_rooms[lobby_id].room_data["playerstats"][player].player_data["ready"]
+        }
+        json_data[player] = playerjson 
+    return JSONResponse(content=json_data,status_code=200)
+
+@app.get("/api-game/fetchgameboard/{lobby_id}/{user_ID}")
+async def funcapi3(lobby_id:str,user_ID:str):
+    to_add = []
+    if(len(all_rooms[lobby_id].room_data["playerstats"][user_ID].player_data["visibletiles"])==0):
+        first_index = 0
+        min = 0; max = gameboard_size[0]
+        if(user_ID!=all_rooms[lobby_id].room_data["leader"]):
+            first_index = gameboard_size[1]-1
+        for i in range(min,max):
+            to_add.append(f'{i}_{first_index}')
+    else:
+        to_add = all_rooms[lobby_id].room_data["playerstats"][user_ID].player_data["visibletiles"]
+    content = {}
+    for item in to_add:
+        content[item] = all_rooms[lobby_id].room_data["gameboard"][item]
+    return JSONResponse(content=content,status_code=200)
+    
+@app.get("/api-game/get_image/{file_id}")
+async def get_image(file_id: str):
+    image_path = "./gallery-assests/"+file_id
+    return FileResponse(image_path,status_code=200)
+ 
+ 

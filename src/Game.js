@@ -2,7 +2,7 @@ import React, { useEffect,useRef  } from 'react';
 import { useState } from "react";
 import {useParams} from 'react-router-dom'
 import {serverurl,getstorage, mainurl, setstorage} from "./index.js"
-import {userReady,settiledisplay} from "./Game_Utils.js"
+import {userReady,settiledisplay,gamestartfunction} from "./Game_Utils.js"
 
 import "./css/Game.css"
 
@@ -17,6 +17,7 @@ function Game(){
     const [loaded,setLoaded] = useState(false)
     const [gameStats,setgamestats] = useState({})
     const [highlightedtile,sethighlightedtile] = useState("")
+    const [startbutton,setstartbutton] = useState(null)
     const socketRef = useRef(null);
 
     const tilesize = 100
@@ -83,9 +84,7 @@ function Game(){
                 var clickable = false
                 if (tileid in reply){
                     blackout = false
-                    if(game_details["ongoing"]==false){ // means game not started = need player to select starting
-                        clickable = true
-                    }
+                    clickable = game_details["ongoing"]==false?true:false
                 }
                 const tilediv = 
                     <div blackout={blackout+""} id={tileid} style={{position:"relative",width:tilesize,height:tilesize,border:"1px solid black",background:blackout?"black":"none"}}>
@@ -131,6 +130,7 @@ function Game(){
         else{
             document.getElementById("message_display").textContent = "select starting tile"
         }
+        setstartbutton(game_details["leader"]===getstorage("userID")&&game_details["readytobegin"]?<div className="startbuttoncss" onClick={()=>{setstartbutton(null);gamestartfunction(lobbyid)}}>Start</div>:null)
         setplayerlistdiv(
             <div className="top-right-box"style={{display:"flex",justifyContent:"center",alignItems:"center",flexDirection:"column",border:"1px solid black"}}>
                 <span className="playerlistspan">Lobby:</span>
@@ -157,6 +157,7 @@ function Game(){
         for (var i =0;i<message["event"].length;i++){
             const event = message["event"][i]
             if(event=="toggle-start-button"){
+                gameinfo["readytobegin"] = message["readytobegin"]
                 await fetchplayerlist(gameinfo)
                 continue
             }
@@ -213,6 +214,7 @@ function Game(){
                 </div>
             </div>
             {content}
+            {startbutton}
         </div>
     )
 }

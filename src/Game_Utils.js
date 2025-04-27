@@ -10,6 +10,12 @@ export async function userReady(lobbyid,dynamicJSON){
         body: JSON.stringify(dynamicJSON)
     }).then(response => response.text()).then(data => data)
 }
+export async function gamestartfunction(lobbyid){
+    const reply = await fetch(serverurl+"api-game/gamestart/"+lobbyid,{
+        method:"GET",
+    }).then(response => response.text()).then(data => data)
+}
+
 
 
 

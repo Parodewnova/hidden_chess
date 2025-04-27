@@ -43,6 +43,26 @@
 100% { background-position: 0% 50%; }
 } */
 
+.startbuttoncss{
+    position: absolute;
+    top: 50%;
+    transform: translate(-0%,-50%);
+    width: 100%;
+    height: 50px;
+    background: rgb(232, 232, 232,0.8);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    font-size: 30px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.startbuttoncss:hover{
+    background: rgb(232, 232, 232,0.4);
+}
+
 
 .top-right-box {
     position: fixed; /* Always stay at top right */

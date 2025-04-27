@@ -140,6 +140,11 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
         except:
             a = 2
 
+
+@app.get("/api-game/gamestart/{lobby_ID}")
+async def thebeginning(lobby_ID: str):
+    print(lobby_ID+" begin")
+
 @app.post("/api-game/userready/{lobby_ID}")
 async def funcapi1(lobby_ID: str, request:Request):
     raw_body = await request.body()  # Get raw bytes
@@ -153,16 +158,22 @@ async def funcapi1(lobby_ID: str, request:Request):
     if(len(allplayers)!=2):
         return
     json_data = {}
+    begin_game = True
     for player in allplayers:
         if(player==user_ID):
             all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["ready"] = readystate
-        json_data[player] = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]
+        ready = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]
+        if not ready:
+            begin_game = False
+        json_data[player] = ready
         if(mode=="initialise"): # set player starting tile
             all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["tilelocation"] = body_json["tile"]
+
 
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+        "readytobegin":begin_game,
         "event":["toggle-start-button"]
     })
 @app.get("/api-game/fetchplayerlist/{lobby_id}")

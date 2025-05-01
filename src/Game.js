@@ -2,23 +2,27 @@ import React, { useEffect,useRef  } from 'react';
 import { useState } from "react";
 import {useParams} from 'react-router-dom'
 import {serverurl,getstorage, mainurl, setstorage} from "./index.js"
-import {userReady,settiledisplay,gamestartfunction} from "./Game_Utils.js"
+import {userReady,settiledisplay,gamestartfunction,newroundfunction, convertTileFormat} from "./Game_Utils.js"
 
 import "./css/Game.css"
-
+import "./css/cardpopup.css"
 
 
 // getstorage("userID") ==> user id
 
 function Game(){
+    const socketRef = useRef(null)
     const {lobbyid} = useParams()
     const [content,setContent] = useState(null)
     const [gameboard,setgameboard] = useState([])
     const [loaded,setLoaded] = useState(false)
-    const [gameStats,setgamestats] = useState({})
-    const [highlightedtile,sethighlightedtile] = useState("")
+    const [highlightedtiles,sethighlightedtile] = useState([])
+    let clickedAbility = {}
+    let useractiondone = false
     const [startbutton,setstartbutton] = useState(null)
-    const socketRef = useRef(null);
+    const [abilityGUI,setabilitygui] = useState(null)
+    const [showCard, setShowCard] = useState(null)
+    const [focusedCard, setFocusedCard] = useState(null)
 
     const tilesize = 100
     
@@ -87,7 +91,7 @@ function Game(){
                     clickable = game_details["ongoing"]==false?true:false
                 }
                 const tilediv = 
-                    <div blackout={blackout+""} id={tileid} style={{position:"relative",width:tilesize,height:tilesize,border:"1px solid black",background:blackout?"black":"none"}}>
+                    <div blackout={blackout+""} id={tileid} style={{position:"relative",width:tilesize,height:tilesize,border:"1px solid black",background:blackout?"black":"none",color:"white"}}>
                         <div id={`starting_tile~${tileid}`} style={{display:clickable?"block":"none"}} className='clickabletilediv' onClick={async (e)=>{
                             const json_data = {
                                 "userID":getstorage("userID"),
@@ -97,6 +101,24 @@ function Game(){
                             }
                             settiledisplay(e.currentTarget.parentElement.parentElement,tileid)
                             await userReady(lobbyid,json_data)
+                        }}></div>
+                        <img src="http://localhost:8000/api-game/get_image/Chess.png" style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
+                        <div id='userinteractiontile' highlight-id={tileid} style={{position:"absolute",display:"none"}} className='highlighttilecss' onClick={async (e)=>{
+                            if(useractiondone){
+                                return
+                            }
+                            useractiondone = true
+                            sethighlightedtile([tileid])
+                            const parent = e.currentTarget
+                            parent.classList.replace("highlighttilecss","highlighttileselectedcss")
+                            clickedAbility["tile-touched"] = tileid
+                            const data = {
+                                "userID":getstorage("userID"),
+                                "mode":"useraction",
+                                "readystate":useractiondone,
+                                "ability":clickedAbility
+                            }
+                            await userReady(lobbyid,data)
                         }}></div>
                     </div>
                     if(inverse){
@@ -124,11 +146,16 @@ function Game(){
     async function fetchplayerlist(game_details){
         const reply = await fetch(serverurl+"api-game/fetchplayerlist/"+lobbyid).then((response)=>response.json()).then((data)=>data)
         const playerlist = reply["players"]
-        if(playerlist.length==1){
-            document.getElementById("message_display").textContent = "waiting for players"
+        if(!game_details["ongoing"]){
+            if(playerlist.length==1){
+                document.getElementById("message_display").textContent = "Waiting for players..."
+            }
+            else{
+                document.getElementById("message_display").textContent = "select starting tile"
+            }
         }
         else{
-            document.getElementById("message_display").textContent = "select starting tile"
+                document.getElementById("message_display").textContent = ""
         }
         setstartbutton(game_details["leader"]===getstorage("userID")&&game_details["readytobegin"]?<div className="startbuttoncss" onClick={()=>{setstartbutton(null);gamestartfunction(lobbyid)}}>Start</div>:null)
         setplayerlistdiv(
@@ -147,6 +174,63 @@ function Game(){
                 })}
             </div>
         )
+    };
+
+    async function displayfunctiongui(game_details){
+        const reply = await fetch(serverurl+"api-game/displayabilitygui/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
+        var cards = []
+        for (const name in reply){
+            const cooldown = reply[name]["cd"]
+            const damage = reply[name]["dmg"]
+            const chosencard = 
+                <div></div>
+            const card = 
+                <div className="card-popup" id={reply[name]["id"]} onClick={(e)=>{
+                    if(useractiondone){
+                        return
+                    }
+                    const cardDIV = e.currentTarget
+                    if(clickedAbility["id"]!=cardDIV.getAttribute("id")){
+                        setTilesToHighlight(reply[name]["tileformat"],game_details["leader"]==getstorage("userID"))
+                        clickedAbility = {
+                            "id":reply[name]["id"],
+                            "type":reply[name]["type"],
+
+                        }
+
+                        setFocusedCard(
+                            <div className="focused-card">
+                                <h1>{name}</h1>
+                                <p>Damage: {damage}</p>
+                                <p>CD: {cooldown}</p>
+                            </div>
+                        )
+                    }
+                    else{
+                        clickedAbility = {}
+                        setFocusedCard(null);
+                    }
+
+                }}>
+                    <h2>{name}</h2>
+                    <p>Damage: {damage}</p>
+                    <p>CD: {cooldown}</p>
+                </div>
+            
+            cards.push(card)
+        }
+            setShowCard(
+                <div className="card-container">
+                {cards}
+                </div>
+            )
+        
+        
+    }
+
+    async function setTilesToHighlight(tileformat,leader) {
+        const reply = await fetch(serverurl+"api-game/fetchplayerstats/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
+        sethighlightedtile(convertTileFormat(reply["tilelocation"],tileformat,leader))
     }
 
     async function handleServerMessages(message){ //json format
@@ -169,13 +253,27 @@ function Game(){
                 await fetchgameboarddisplay(gameinfo)
                 continue
             }
+            if(event=="send-ability-gui"){
+                gameinfo["readytobegin"] = message["readytobegin"]
+                await displayfunctiongui(gameinfo)
+                continue
+            }
+            if(event=="set-animations"){
+                continue
+            }
+            if(event=="new-round"){
+                // reset highlighted tiles
+                sethighlightedtile([])
+                clickedAbility = {}
+                setFocusedCard(null)
+                useractiondone = false
+                await newroundfunction(lobbyid)
+                continue
+            }
         }
     }
 
 
-    useEffect(() => {
-        checkvalidvalues(lobbyid, getstorage("userID"));
-    }, []);
     useEffect(() => { // set up websocket
         if(!loaded){
             return
@@ -201,6 +299,26 @@ function Game(){
         }
         };
     }, [loaded]);
+    useEffect(() => { // highlighted tiles changed
+        const allHighlightTiles = Array.from(document.querySelectorAll("#userinteractiontile"))
+        for(const tile of allHighlightTiles){
+            const tileID = tile.getAttribute("highlight-id")
+            if(highlightedtiles.length==0){
+                tile.classList.replace("highlighttileselectedcss","highlighttilecss")
+                tile.style.display = "none"
+                continue;
+            }
+            if(!highlightedtiles.includes(tileID)){
+                tile.style.display = "none"
+                continue;
+            }
+            tile.style.display = "block"
+        }
+    }, [highlightedtiles]);
+    useEffect(() => {
+        checkvalidvalues(lobbyid, getstorage("userID"));
+        // sethighlightedtile(convertTileFormat("2_0","xxxxx-ooooo-ooLoo",true))
+    }, []);
     return(
         <div style={{width:"100%",height:"100vh"}}>
             <div style={{display:"none"}} id='player-ready-state'>false</div>
@@ -215,6 +333,8 @@ function Game(){
             </div>
             {content}
             {startbutton}
+            {showCard}
+            {focusedCard}
         </div>
     )
 }

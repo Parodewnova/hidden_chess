@@ -73,7 +73,7 @@ async function joinserver(){
 
 function Home(){
     return(
-        <div style={{width:"100%",height:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:"3px",backgroundColor:" rgb(9, 31, 56)"}}>
+        <div style={{width:"100%",height:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:"3px",backgroundColor:" #091f38"}}>
             {/* <img src="http://localhost:8000/get-image/pngtree-qitian-dasheng-sun-wukong-comic-character-design-charactersjourney-to-the-png-image_4025730.jpg" style={{width:"100px",height:"100px"}}></img> */}
             <title>Hidden Chess</title> 
             <span style={{position:"absolute",top:"10%",textWrap:"nowrap"}}className="main-title">Hidden Chess</span>

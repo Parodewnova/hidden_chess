@@ -29,7 +29,7 @@ class roomblueprint():
         "ongoing":False,
         "players":[],
         "max-players":2,
-        "turns":0,
+        "rounds":0,
         "gameboard":{},
         "playerstats":{}
     }
@@ -48,6 +48,23 @@ class playerblueprint():
     playerstats_blueprint = {
         "tilelocation":"",
         "visibletiles":[],
+        "currentusage":{},
+        "abilities":{
+            "move":{
+                "id":"001",
+                "type":"mov",
+                "dmg":0,
+                "cd":0,
+                "tileformat":"oxo-xLx-oxo"
+            },
+            "name2":{
+                "id":"002",
+                "type":"atk",
+                "dmg":2,
+                "cd":1,
+                "tileformat":"xxxxx-ooooo-ooLoo"
+            }
+        },
         "status":[],
         "ready":False
     }
@@ -138,12 +155,80 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
                 "event":["update-player-list"]
             })
         except:
-            a = 2
+            if len(all_rooms[lobbyID].room_data["players"])==0:
+                all_rooms[lobbyID] = roomblueprint()
+
 
 
 @app.get("/api-game/gamestart/{lobby_ID}")
 async def thebeginning(lobby_ID: str):
-    print(lobby_ID+" begin")
+    all_rooms[lobby_ID].room_data["ongoing"] = True
+    allplayers = all_rooms[lobby_ID].room_data["players"]
+    for player in allplayers:
+        player_stats = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
+        player_stats["ready"] = False
+        player_stats["visibletiles"] = [player_stats["tilelocation"]]
+        all_rooms[lobby_ID].room_data["gameboard"][player_stats["tilelocation"]]["players"].append(player)
+
+
+    all_rooms[lobby_ID].room_data["rounds"] =1
+    await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+        "leader":all_rooms[lobby_ID].room_data["leader"],
+        "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+        "round":all_rooms[lobby_ID].room_data["rounds"],
+        "event":["update-player-list","update-player-gameboard","send-ability-gui"]
+    })
+@app.get("/api-game/newround/{lobby_ID}")
+async def rounds(lobby_ID: str):
+    allplayers = all_rooms[lobby_ID].room_data["players"]
+    for player in allplayers:
+        player_stats = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
+        player_stats["ready"] = False
+        player_stats["visibletiles"] = [player_stats["tilelocation"]]
+    
+
+    all_rooms[lobby_ID].room_data["rounds"]+=1
+    await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+        "leader":all_rooms[lobby_ID].room_data["leader"],
+        "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+        "event":["update-player-list","update-player-gameboard","send-ability-gui"]
+    })
+
+
+
+all_types = ["trp","mov",'atk']
+def get_opposition(players,currentplayer):
+    a=2
+def move(lobbyID,json):
+    moved_player = json["user"]
+    player_data = all_rooms[lobbyID].room_data["playerstats"][moved_player].player_data
+    player_data["visibletiles"].remove(player_data["tilelocation"])
+    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].remove(moved_player)
+    player_data["tilelocation"] = json["tile-touched"]
+    player_data["visibletiles"].append(player_data["tilelocation"])
+    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].append(moved_player)
+
+# example = {'ipnypFuRME': {'id': '001', 'type': 'mov', 'tile-touched': '2_1'}, 'XOZlJBhVb': {'id': '001', 'type': 'mov', 'tile-touched': '3_4'}}
+def game_operations(lobbyID):
+    allplayers = all_rooms[lobbyID].room_data["players"]
+    gamedata = {"trp":[],"mov":[],"atk":[]}
+    for player in allplayers:
+        round_stats = all_rooms[lobbyID].room_data["playerstats"][player].player_data["currentusage"]
+        round_stats["user"] = player # ==> added userID to data
+        gamedata[round_stats["type"]].append(round_stats)
+        all_rooms[lobbyID].room_data["playerstats"][player].player_data["currentusage"] = {}
+    for type in all_types:
+        for json_data in gamedata[type]:
+            if(type=="mov"):
+                move(lobbyID,json_data)
+                continue
+            if(type=="atk"):
+                continue
+            if(type=="trp"):
+                continue
+
+
+    
 
 @app.post("/api-game/userready/{lobby_ID}")
 async def funcapi1(lobby_ID: str, request:Request):
@@ -155,8 +240,8 @@ async def funcapi1(lobby_ID: str, request:Request):
     readystate = body_json["readystate"]
 
     allplayers = all_rooms[lobby_ID].room_data["players"]
-    if(len(allplayers)!=2):
-        return
+    # if(len(allplayers)!=2): #SEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    #     return
     json_data = {}
     begin_game = True
     for player in allplayers:
@@ -168,14 +253,28 @@ async def funcapi1(lobby_ID: str, request:Request):
         json_data[player] = ready
         if(mode=="initialise"): # set player starting tile
             all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["tilelocation"] = body_json["tile"]
+        if(mode=="useraction"):
+             all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["currentusage"] = body_json["ability"]
 
-
+    if not all_rooms[lobby_ID].room_data["ongoing"]: # not ongoing means starting game
+        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+            "leader":all_rooms[lobby_ID].room_data["leader"],
+            "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+            "readytobegin":begin_game,
+            "event":["toggle-start-button"]
+        })
+        return
+    # ongoing means user playing their rounds
+    event_arr = ["update-player-list"]
+    if(begin_game):
+        game_operations(lobby_ID)
+        event_arr.append("update-player-gameboard")
+        event_arr.append("new-round")
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
-        "leader":all_rooms[lobby_ID].room_data["leader"],
-        "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-        "readytobegin":begin_game,
-        "event":["toggle-start-button"]
-    })
+            "leader":all_rooms[lobby_ID].room_data["leader"],
+            "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+            "event":event_arr
+        })
 @app.get("/api-game/fetchplayerlist/{lobby_id}")
 async def funcapi2(lobby_id:str):
     json_data = {
@@ -188,11 +287,11 @@ async def funcapi2(lobby_id:str):
         }
         json_data[player] = playerjson 
     return JSONResponse(content=json_data,status_code=200)
-
 @app.get("/api-game/fetchgameboard/{lobby_id}/{user_ID}")
 async def funcapi3(lobby_id:str,user_ID:str):
+    player_data = all_rooms[lobby_id].room_data["playerstats"][user_ID].player_data
     to_add = []
-    if(len(all_rooms[lobby_id].room_data["playerstats"][user_ID].player_data["visibletiles"])==0):
+    if(len(player_data["visibletiles"])==0):
         first_index = 0
         min = 0; max = gameboard_size[0]
         if(user_ID!=all_rooms[lobby_id].room_data["leader"]):
@@ -200,15 +299,22 @@ async def funcapi3(lobby_id:str,user_ID:str):
         for i in range(min,max):
             to_add.append(f'{i}_{first_index}')
     else:
-        to_add = all_rooms[lobby_id].room_data["playerstats"][user_ID].player_data["visibletiles"]
+        to_add = player_data["visibletiles"]
     content = {}
     for item in to_add:
         content[item] = all_rooms[lobby_id].room_data["gameboard"][item]
+    #content[user_ID] = player_data["tilelocation"]
     return JSONResponse(content=content,status_code=200)
-    
+@app.get("/api-game/displayabilitygui/{lobby_id}/{userID}")
+async def funcapi4(lobby_id:str,userID:str):
+    Ability = all_rooms[lobby_id].room_data["playerstats"][userID].player_data["abilities"] 
+    return JSONResponse(content=Ability,status_code=200)
 @app.get("/api-game/get_image/{file_id}")
-async def get_image(file_id: str):
+async def funcapi5(file_id: str):
     image_path = "./gallery-assests/"+file_id
     return FileResponse(image_path,status_code=200)
- 
+@app.get("/api-game/fetchplayerstats/{lobby_id}/{user_id}")
+async def funcapi6(lobby_id:str,user_id:str):
+    return JSONResponse(content=all_rooms[lobby_id].room_data["playerstats"][user_id].player_data,status_code=200)
+    
  

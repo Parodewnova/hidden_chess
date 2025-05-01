@@ -1,0 +1,54 @@
+.open-button {
+    padding: 10px 20px;
+    margin: 20px;
+    font-size: 16px;
+  }
+  
+  .card-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    animation: slideUp 0.4s ease-out;
+    z-index: 1000;
+  }
+  
+  .card-popup {
+    background-color: white;
+    border-radius: 12px;
+    padding: 20px;
+    width: 200px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+    text-align: center;
+  
+    /* 👇 Start lower — only 50% visible */
+    transform: translateY(50%);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  .card-popup:hover {
+    transform: translateY(0%);
+    box-shadow: 0 6px 30px rgba(0, 0, 0, 0.3);
+  }
+  
+  @keyframes bounceUpDown {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+
+  .focused-card {
+    position: absolute;
+    top: 20%;
+    left: 30px;
+    width: 260px;
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    padding: 24px;
+    z-index: 100;
+  }

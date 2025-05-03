@@ -2,7 +2,7 @@ import React, { useEffect,useRef  } from 'react';
 import { useState } from "react";
 import {useParams} from 'react-router-dom'
 import {serverurl,getstorage, mainurl, setstorage} from "./index.js"
-import {userReady,settiledisplay,gamestartfunction,newroundfunction, convertTileFormat} from "./Game_Utils.js"
+import {userReady,settiledisplay,fetchplayerlogs,gamestartfunction,newroundfunction, convertTileFormat} from "./Game_Utils.js"
 
 import "./css/Game.css"
 import "./css/cardpopup.css"
@@ -20,9 +20,9 @@ function Game(){
     let clickedAbility = {}
     let useractiondone = false
     const [startbutton,setstartbutton] = useState(null)
-    const [abilityGUI,setabilitygui] = useState(null)
     const [showCard, setShowCard] = useState(null)
     const [focusedCard, setFocusedCard] = useState(null)
+    const [gamelogs, setGameLogs] = useState([])
 
     const tilesize = 100
     
@@ -240,6 +240,10 @@ function Game(){
         }
         for (var i =0;i<message["event"].length;i++){
             const event = message["event"][i]
+            if(event=="request-user-logs"){
+                const playerlogs = (await fetchplayerlogs(lobbyid)).replace("[","").replace("]","").replaceAll("'","").split(",")
+                setGameLogs(playerlogs)
+            }
             if(event=="toggle-start-button"){
                 gameinfo["readytobegin"] = message["readytobegin"]
                 await fetchplayerlist(gameinfo)
@@ -319,12 +323,27 @@ function Game(){
         checkvalidvalues(lobbyid, getstorage("userID"));
         // sethighlightedtile(convertTileFormat("2_0","xxxxx-ooooo-ooLoo",true))
     }, []);
+    useEffect(() => { // auto scroller
+        const view = document.getElementById("logmessagelist")
+        view.scrollTo({
+            top: view.scrollHeight,
+            behavior: 'smooth'
+          });
+    }, [gamelogs]);
     return(
         <div style={{width:"100%",height:"100vh"}}>
             <div style={{display:"none"}} id='player-ready-state'>false</div>
             <div style={{width:"100%",height:"100vh", display:loaded ?"flex" : "none",flexDirection:"column"}}>
-                <div style={{position:"absolute",width:"20%",right:"0px",height:"100%"}} id="right-nav">
+                <div style={{position:"absolute",width:"20%",right:"0px",height:"100%",padding:"20px"}} id="right-nav">
                     {playerlistdiv}
+                    <div style={{display:"flex",flexDirection:"column",marginTop:"20px",border:"1px solid white",background:"bisque"}}>
+                        <h1 style={{width:"100%",textAlign:"center",fontSize:"15px"}}>--LOGS--</h1>
+                        <div id='logmessagelist' style={{maxHeight:"100px",overflowY:"auto",display:"flex",flexDirection:"column"}}>
+                            {gamelogs.map((log, index) => (
+                                <span key={index} className='loglistchildcss'>{log}</span>
+                            ))}
+                        </div>
+                    </div>      
                 </div>
                 <div style={{display:"flex",justifyContent:"center",alignContent:"center",flex:"1"}} id="main-nav">
                     <div id="message_display" style={{position:"absolute",top:"10%",left:"50%",transform:"translate(-50%, 0%)",fontSize:"20px",fontWeight:"bold"}}></div>

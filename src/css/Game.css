@@ -69,12 +69,8 @@ body{
 
 
 .top-right-box {
-    position: fixed; /* Always stay at top right */
-    top: 20px;
-    right: 20px;
-    
-    width: 180px; /* smaller width */
-    padding: 15px;
+    width: 100%; /* smaller width */
+    min-height: 70px;
     
     background-color: rgb(232, 232, 232); 
     border: 1px solid rgba(255, 255, 255, 0.2); /* soft border */
@@ -105,4 +101,10 @@ body{
     width: 50%;
     height: 50%;
     border: 1px solid whitesmoke;
+}
+
+
+.loglistchildcss{
+    margin: 3px;
+    font-size: 13px;
 }

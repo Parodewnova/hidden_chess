@@ -21,7 +21,7 @@ playerusernames = {
     
 }
 
-
+max_logsize = 30
 gameboard_size = [5,5] # row,height
 class roomblueprint():
     roomjson_blueprint = {
@@ -66,7 +66,8 @@ class playerblueprint():
             }
         },
         "status":[],
-        "ready":False
+        "ready":False,
+        "player_logs":[]
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -118,18 +119,33 @@ async def func2(model:checkvaluesmodel):
 async def deliverMessageToClient(clients,message_json):
     for client in clients:
         await registered_guests[client].send_json(message_json)
+def updateplayerlogs(lobby_ID,player,message):
+    player_arr = [player]
+    if player==None or player == "": #global log update
+        player_arr = all_rooms[lobby_ID].room_data["players"]
+    for player in player_arr: 
+        loglist = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["player_logs"]
+        loglist.append(message)
+        while len(loglist) > max_logsize:
+            loglist.pop(0)
 
 @app.websocket("/clientSOCKET/{userID}/{lobbyID}")
 async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     await websocket.accept()
     registered_guests[userID] = websocket
-    
+    updateplayerlogs(lobbyID,userID,playerusernames[userID]+" joined the lobby")
+
+
+    for player in all_rooms[lobbyID].room_data["players"]:
+        if player!=userID:
+            updateplayerlogs(lobbyID,player,playerusernames[userID]+" joined the lobby")
+            break
     if(len(all_rooms[lobbyID].room_data["players"])==1):
         all_rooms[lobbyID].room_data["leader"] = userID
     await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
         "leader":all_rooms[lobbyID].room_data["leader"],
         "ongoing":all_rooms[lobbyID].room_data["ongoing"],
-        "event":["update-player-list","update-player-gameboard"]
+        "event":["update-player-list","update-player-gameboard","request-user-logs"]
     })
     try:
         while True:
@@ -147,12 +163,13 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
         all_rooms[lobbyID].room_data["players"].remove(userID)
         for player in all_rooms[lobbyID].room_data["players"]:
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"] = False
+            updateplayerlogs(lobbyID,player,userID+" has left the lobby")
         try:
             all_rooms[lobbyID].room_data["leader"] = all_rooms[lobbyID].room_data["players"][0]
             await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
                 "leader":all_rooms[lobbyID].room_data["leader"],
                 "ongoing":all_rooms[lobbyID].room_data["ongoing"],
-                "event":["update-player-list"]
+                "event":["update-player-list","request-user-logs"]
             })
         except:
             if len(all_rooms[lobbyID].room_data["players"])==0:
@@ -172,11 +189,12 @@ async def thebeginning(lobby_ID: str):
 
 
     all_rooms[lobby_ID].room_data["rounds"] =1
+    updateplayerlogs(lobby_ID,"","Round 1")
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
         "round":all_rooms[lobby_ID].room_data["rounds"],
-        "event":["update-player-list","update-player-gameboard","send-ability-gui"]
+        "event":["update-player-list","update-player-gameboard","send-ability-gui","request-user-logs"]
     })
 @app.get("/api-game/newround/{lobby_ID}")
 async def rounds(lobby_ID: str):
@@ -188,10 +206,11 @@ async def rounds(lobby_ID: str):
     
 
     all_rooms[lobby_ID].room_data["rounds"]+=1
+    updateplayerlogs(lobby_ID,"","Round "+str(all_rooms[lobby_ID].room_data["rounds"]))
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-        "event":["update-player-list","update-player-gameboard","send-ability-gui"]
+        "event":["update-player-list","update-player-gameboard","send-ability-gui","request-user-logs"]
     })
 
 
@@ -316,5 +335,9 @@ async def funcapi5(file_id: str):
 @app.get("/api-game/fetchplayerstats/{lobby_id}/{user_id}")
 async def funcapi6(lobby_id:str,user_id:str):
     return JSONResponse(content=all_rooms[lobby_id].room_data["playerstats"][user_id].player_data,status_code=200)
+@app.get("/api-game/fetch-player-logs/{lobby_id}/{user_id}")
+async def funcapi7(lobby_id:str,user_id:str):
+    log = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data["player_logs"]
+    return PlainTextResponse(str(log),status_code=200)
     
  

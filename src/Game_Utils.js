@@ -25,6 +25,12 @@ export async function newroundfunction(lobbyid){
 //         method:"GET",
 //     }).then(response => response.text()).then(data => data)
 // }
+export async function fetchplayerlogs(lobbyid) {
+    const reply = await fetch(serverurl+"api-game/fetch-player-logs/"+lobbyid+"/"+getstorage("userID"),{
+        method:"GET",
+    }).then(response => response.text()).then(data => data)
+    return reply
+}
 
 
 

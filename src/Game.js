@@ -25,6 +25,12 @@ function Game(){
     const [gamelogs, setGameLogs] = useState([])
     const [playerstatus,setplayerstatus] = useState([])
 
+    const [minihighlight,setminihighlight] = useState(null)
+
+    let visibletoken = {}
+    const [spectatingtile,setspectatingtile] = useState(null)
+    //const [visibletoken,setvisibletoken] = useState({})
+
     const tilesize = 100
     
     const [playerlistdiv,setplayerlistdiv] = useState(null)
@@ -92,7 +98,44 @@ function Game(){
                     clickable = game_details["ongoing"]==false?true:false
                 }
                 const tilediv = 
-                    <div blackout={blackout+""} id={tileid} style={{position:"relative",width:tilesize,height:tilesize,border:"1px solid black",background:blackout?"black":"none",color:"white"}}>
+                    <div blackout={blackout+""} id={tileid} style={{position:"relative",width:tilesize,height:tilesize,border:"1px solid black",background:blackout?"black":"none",color:"white"}} className='maintiledivcss' 
+                    onClick={(e)=>{
+                        if(!game_details["ongoing"]||JSON.stringify(clickedAbility)!=="{}"){
+                            return
+                        }
+                        var blacked = false
+                        if(e.currentTarget.getAttribute("blackout")==="true"){
+                            blacked = true
+                        }
+                        
+                        const display = e.currentTarget.getBoundingClientRect()
+                        setminihighlight(
+                            <div id={e.currentTarget.getAttribute("id")} style={{position:"absolute",width:display.width,height:display.height,left:display.left,top:display.top,background:"rgba(211, 211, 211, 0.3)"}}>
+                            </div>
+                        )
+                        // const current_display = e.currentTarget.querySelector("#mini_display")
+                        // if(current_display.style.display=="block"){
+                        //     current_display.style.display = "none"
+                        //     minitile_highlight = null
+                        //     setspectatingtile(null)
+                        //     return
+                        // }
+                        // if(minitile_highlight!=null){
+                        //     minitile_highlight.style.display = "none"
+                        // }
+                        // minitile_highlight=current_display
+                        // minitile_highlight.style.display = "block"
+                        const tiledivcomp = !(e.currentTarget.getAttribute("id") in visibletoken)?null:
+                        <div style={{color:"white"}}>
+                            penis
+                        </div>
+                        const tilediv =
+                        <div style={{top:display.top,left:display.right+10}} className='tilestatuscss'>
+                            <span style={{color:blacked?"red":"white"}}>{blacked?"UNKNOWN?":""}</span>
+                            {tiledivcomp}
+                        </div>
+                        setspectatingtile(tilediv)
+                    }}>
                         <div id={`starting_tile~${tileid}`} style={{display:clickable?"block":"none"}} className='clickabletilediv' onClick={async (e)=>{
                             const json_data = {
                                 "userID":getstorage("userID"),
@@ -103,6 +146,7 @@ function Game(){
                             settiledisplay(e.currentTarget.parentElement.parentElement,tileid)
                             await userReady(lobbyid,json_data)
                         }}></div>
+                        
                         <img src={serverurl+"api-game/get_image/Chess.png"} style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
                         <div id='userinteractiontile' highlight-id={tileid} style={{position:"absolute",display:"none"}} className='highlighttilecss' onClick={async (e)=>{
                             if(useractiondone){
@@ -138,7 +182,7 @@ function Game(){
             }
         }
         setgameboard(
-            <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",display:"flex",width:`${(tilesize+2)*getstorage("boardwidth")}px`,border:"1px solid black",flexWrap:"wrap"}}>
+            <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",display:"flex",width:`${(tilesize+2)*getstorage("boardwidth")}px`,flexWrap:"wrap"}}>
                 {tiledivarr}
             </div>
         )
@@ -176,7 +220,6 @@ function Game(){
             </div>
         )
     };
-
     async function displayfunctiongui(game_details){
         const reply = await fetch(serverurl+"api-game/displayabilitygui/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
         var cards = []
@@ -207,6 +250,8 @@ function Game(){
                                 <p>{description}</p>
                             </div>
                         )
+                        setminihighlight(null)
+                        setspectatingtile(null)
                     }
                     else{
                         clickedAbility = {}
@@ -262,6 +307,11 @@ function Game(){
             if(event=="send-ability-gui"){
                 gameinfo["readytobegin"] = message["readytobegin"]
                 await displayfunctiongui(gameinfo)
+                continue
+            }
+            if(event=="update-user-tokens"){
+                setspectatingtile("")
+                visibletoken = await fetchplayerstats(lobbyid,"visibletokens")
                 continue
             }
             if(event=="update-user-statuses"){ // request update statuses
@@ -385,6 +435,8 @@ function Game(){
             {startbutton}
             {showCard}
             {focusedCard}
+            {spectatingtile}
+            {minihighlight}
         </div>
     )
 }

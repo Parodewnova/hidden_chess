@@ -60,7 +60,7 @@ class playerblueprint():
         },
         "ready":False,
         "player_logs":[],
-        "traps":[]
+        "visibletokens":{}
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -202,15 +202,15 @@ async def rounds(lobby_ID: str):
     updateplayerlogs(lobby_ID,"","Round "+str(all_rooms[lobby_ID].room_data["rounds"]))
 
     #activate each status all player have
-    for player in allplayers:
-        player_status = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["status"]
-        for status in player_status:
-            print(status)
+    # for player in allplayers:
+    #     player_status = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["status"]
+    #     for status in player_status:
+    #         print(status)
 
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-        "event":["update-player-list","update-player-gameboard","send-ability-gui","request-user-logs","update-user-statuses"]
+        "event":["update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard"]
     })
 
 def setRandomID():
@@ -220,6 +220,20 @@ def setRandomID():
     for i in range(0,max):
         toreturn+=var[random.randint(0,(len(var)-1))]
     return toreturn
+def addItemToVisibleToken(tile,player_visible_tokens,enemy,itemname):
+    visibletokensformat = {
+        "enemy":enemy,
+        "itemname":itemname,
+    }
+    current = []
+    if tile in player_visible_tokens:
+        current = player_visible_tokens[tile]
+    current.append(visibletokensformat)
+    player_visible_tokens[tile] = current
+# def removeItemFromVisibleToken(tile,player_visible_tokens,enemy,itemname):
+#     current = player_visible_tokens[tile]
+#     for item in current:
+        
 
 all_types = ["trp","mov",'atk']
 def get_opposition(players,currentplayer):
@@ -231,10 +245,11 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
     }
     trapID = setRandomID()
     all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
-    all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
+    #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
     split = json_["identifier"].split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]
+        addItemToVisibleToken(json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],False,ability_data["name"])
         updateplayerlogs(lobbyID,json_["user"],ability_data["name"]+" trap set")
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
@@ -244,7 +259,7 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
         #     continue
         #trigger it
         setforRemoval.append(data)
-        all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["traps"].remove(data) #remove from setter
+        #all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["traps"].remove(data) #remove from setter
         split =  tiledata[data]["identifier"].split(":")
         with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
             ability_data = json.load(reader)["serverside"]
@@ -403,7 +418,7 @@ async def funcapi5(file_id: str):
 @app.get("/api-game/fetchplayerstats/{lobby_id}/{user_id}/{component}")
 async def funcapi6(lobby_id:str,user_id:str,component:str):
     playerdata = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data
-    print(playerdata)
+    #print(playerdata)
     return JSONResponse(content=playerdata[component],status_code=200)
 # @app.get("/api-game/fetch-player-logs/{lobby_id}/{user_id}")
 # async def funcapi7(lobby_id:str,user_id:str):

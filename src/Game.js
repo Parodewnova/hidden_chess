@@ -2,7 +2,7 @@ import React, { useEffect,useRef  } from 'react';
 import { useState } from "react";
 import {useParams} from 'react-router-dom'
 import {serverurl,getstorage, mainurl, setstorage} from "./index.js"
-import {userReady,settiledisplay,fetchplayerlogs,gamestartfunction,newroundfunction, convertTileFormat} from "./Game_Utils.js"
+import {userReady,settiledisplay,fetchplayerstats,gamestartfunction,newroundfunction, convertTileFormat} from "./Game_Utils.js"
 
 import "./css/Game.css"
 import "./css/cardpopup.css"
@@ -23,6 +23,7 @@ function Game(){
     const [showCard, setShowCard] = useState(null)
     const [focusedCard, setFocusedCard] = useState(null)
     const [gamelogs, setGameLogs] = useState([])
+    const [playerstatus,setplayerstatus] = useState([])
 
     const tilesize = 100
     
@@ -102,7 +103,7 @@ function Game(){
                             settiledisplay(e.currentTarget.parentElement.parentElement,tileid)
                             await userReady(lobbyid,json_data)
                         }}></div>
-                        <img src="http://localhost:8000/api-game/get_image/Chess.png" style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
+                        <img src={serverurl+"api-game/get_image/Chess.png"} style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
                         <div id='userinteractiontile' highlight-id={tileid} style={{position:"absolute",display:"none"}} className='highlighttilecss' onClick={async (e)=>{
                             if(useractiondone){
                                 return
@@ -180,22 +181,22 @@ function Game(){
         const reply = await fetch(serverurl+"api-game/displayabilitygui/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
         var cards = []
         for (const name in reply){
-            const cooldown = reply[name]["cd"]
-            const damage = reply[name]["dmg"]
-            const chosencard = 
-                <div></div>
+            const cooldown = reply[name]["cooldown"]
+            const damage = reply[name]["damage"]
+            const description = reply[name]["description"]
+            const identifier = reply[name]["identifier"]
+            const tileformat = reply[name]["tileformat"]
+            
             const card = 
-                <div className="card-popup" id={reply[name]["id"]} onClick={(e)=>{
+                <div className="card-popup" id={identifier} onClick={(e)=>{
                     if(useractiondone){
                         return
                     }
                     const cardDIV = e.currentTarget
-                    if(clickedAbility["id"]!=cardDIV.getAttribute("id")){
-                        setTilesToHighlight(reply[name]["tileformat"],game_details["leader"]==getstorage("userID"))
+                    if(clickedAbility["identifier"]!=cardDIV.getAttribute("id")){
+                        setTilesToHighlight(tileformat,game_details["leader"]==getstorage("userID"))
                         clickedAbility = {
-                            "id":reply[name]["id"],
-                            "type":reply[name]["type"],
-
+                            "identifier":identifier
                         }
 
                         setFocusedCard(
@@ -203,12 +204,14 @@ function Game(){
                                 <h1>{name}</h1>
                                 <p>Damage: {damage}</p>
                                 <p>CD: {cooldown}</p>
+                                <p>{description}</p>
                             </div>
                         )
                     }
                     else{
                         clickedAbility = {}
                         setFocusedCard(null);
+                        sethighlightedtile([])
                     }
 
                 }}>
@@ -227,10 +230,9 @@ function Game(){
         
         
     }
-
     async function setTilesToHighlight(tileformat,leader) {
-        const reply = await fetch(serverurl+"api-game/fetchplayerstats/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
-        sethighlightedtile(convertTileFormat(reply["tilelocation"],tileformat,leader))
+        const reply = (await fetchplayerstats(lobbyid,"tilelocation"))
+        sethighlightedtile(convertTileFormat(reply,tileformat,leader))
     }
 
     async function handleServerMessages(message){ //json format
@@ -241,7 +243,7 @@ function Game(){
         for (var i =0;i<message["event"].length;i++){
             const event = message["event"][i]
             if(event=="request-user-logs"){
-                const playerlogs = (await fetchplayerlogs(lobbyid)).replace("[","").replace("]","").replaceAll("'","").split(",")
+                const playerlogs = (await fetchplayerstats(lobbyid,"player_logs"))//.replace("[","").replace("]","").replaceAll("'","").replaceAll("\"","").split(",")
                 setGameLogs(playerlogs)
             }
             if(event=="toggle-start-button"){
@@ -262,7 +264,33 @@ function Game(){
                 await displayfunctiongui(gameinfo)
                 continue
             }
-            if(event=="set-animations"){
+            if(event=="update-user-statuses"){ // request update statuses
+                const playerstatus = (await fetchplayerstats(lobbyid,"status"))
+                const statusDivArr = []
+                for(const status in playerstatus){
+                    const div_status = 
+                    <div className='statusiconcss' onMouseEnter={(e)=>{
+                        e.currentTarget.querySelector("#descriptionlabel").style.display = "flex"
+                    }} onMouseLeave={(e)=>{
+                        e.currentTarget.querySelector("#descriptionlabel").style.display = "none"
+                    }}>
+                        <img src={serverurl+"api-game/get_image/status-assests|"+status+".png"} style={{width:"100%",height:"100%"}}></img>
+                        <div id='descriptionlabel' style={{position:"absolute",display:"none",flexDirection:"column",fontSize:"12px",background:"white",width:"fitContent",padding:"3px"}}>
+                            <span style={{color:'red',fontWeight:"bold"}}>{status}</span>
+                                {
+                                    playerstatus[status]["data"].map((value)=>{
+                                        <div style={{border:"1px solid black",padding:"2px"}}>
+                                            <span>duration: {value["duration"]}</span>
+                                            <span>source: {value["source"]}</span>
+                                        </div>
+                                    })
+                                }
+                            <span>[{playerstatus[status]["description"]}]</span>
+                        </div>
+                    </div>
+                    statusDivArr.push(div_status)
+                }
+                setplayerstatus(statusDivArr)
                 continue
             }
             if(event=="new-round"){
@@ -334,13 +362,14 @@ function Game(){
         <div style={{width:"100%",height:"100vh"}}>
             <div style={{display:"none"}} id='player-ready-state'>false</div>
             <div style={{width:"100%",height:"100vh", display:loaded ?"flex" : "none",flexDirection:"column"}}>
+                <div id='status-list' style={{maxWidth:"100%",display:"flex",flexWrap:"wrap"}}>{playerstatus}</div>
                 <div style={{position:"absolute",width:"20%",right:"0px",height:"100%",padding:"20px"}} id="right-nav">
                     {playerlistdiv}
-                    <div style={{display:"flex",flexDirection:"column",marginTop:"20px",border:"1px solid white",background:"bisque"}}>
+                    <div style={{display:"flex",flexDirection:"column",marginTop:"5px",border:"1px solid white",background:"bisque"}}>
                         <h1 style={{width:"100%",textAlign:"center",fontSize:"15px"}}>--LOGS--</h1>
-                        <div id='logmessagelist' style={{maxHeight:"100px",overflowY:"auto",display:"flex",flexDirection:"column"}}>
+                        <div id='logmessagelist' style={{overflowY:"auto",display:"flex",flexDirection:"column"}}>
                             {gamelogs.map((log, index) => (
-                                <span key={index} className='loglistchildcss'>{log}</span>
+                                <span key={index} style={{margin:"3px",fontSize:"13px"}}>{log}</span>
                             ))}
                         </div>
                     </div>      

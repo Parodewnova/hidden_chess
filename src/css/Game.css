@@ -103,8 +103,10 @@ body{
     border: 1px solid whitesmoke;
 }
 
-
-.loglistchildcss{
-    margin: 3px;
-    font-size: 13px;
+.statusiconcss{
+    width: 30px;
+    height: 30px;
+    margin: 5px;
+    cursor: pointer;
+    border: 1px solid black;
 }

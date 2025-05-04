@@ -21,9 +21,7 @@ all_status = {}
 with open("./status.json","r") as reader:
     all_status = json.load(reader)
 
-playerusernames = {
-    
-}
+playerusernames = {}
 
 max_logsize = 30
 gameboard_size = [5,5] # row,height
@@ -55,10 +53,10 @@ class playerblueprint():
         "currentusage":{},
         "abilities":["mov:001","trp:001"],
         "status":{
-            "exposed":{
-                "data":[{"duration":2,"source":"sensor-mine"},{"duration":2,"source":"sensor-mine"}],
-                "description":"you are visible"
-            }
+            # "exposed":{
+            #     "data":[{"duration":2,"source":"sensor-mine"}],
+            #     "description":"you are visible"
+            # }
         },
         "ready":False,
         "player_logs":[],
@@ -226,18 +224,18 @@ def setRandomID():
 all_types = ["trp","mov",'atk']
 def get_opposition(players,currentplayer):
     a=2
-def set_trap_action(lobbyID,json): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
+def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
     trap_jsondata = {
-        "setter":json["user"],
-        "identifier":json["identifier"]
+        "setter":json_["user"],
+        "identifier":json_["identifier"]
     }
     trapID = setRandomID()
-    all_rooms[lobbyID].room_data["gameboard"][json["tile-touched"]]["traps"][trapID] = trap_jsondata
-    all_rooms[lobbyID].room_data["playerstats"][json["user"]].player_data["traps"].append(trapID)
-    split = json["identifier"].split(":")
-    with open("./abitlies/"+split[0]+"/"+split[1]+".json","r") as reader:
+    all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
+    all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
+    split = json_["identifier"].split(":")
+    with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]
-        updateplayerlogs(lobbyID,json["user"],ability_data["name"]+" trap set")
+        updateplayerlogs(lobbyID,json_["user"],ability_data["name"]+" trap set")
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
@@ -248,19 +246,20 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
         setforRemoval.append(data)
         all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["traps"].remove(data) #remove from setter
         split =  tiledata[data]["identifier"].split(":")
-        with open("./abitlies/"+split[0]+"/"+split[1]+".json","r") as reader:
+        with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
             ability_data = json.load(reader)["serverside"]
             for effect in ability_data["effect"]:
-                effect_json = all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect]
-                if effect_json == None:
-                    effect_json = {
-                        "data":[],
-                        "description":all_status[effect]
-                    }
+                effect_json = {
+                    "data":[],
+                    "description":all_status[effect]["description"]
+                }
+                if effect in all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"]:
+                    effect_json = all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect]
                 effect_json["data"].append({
                     "duration":ability_data["effect-duration"],
                     "source":ability_data["name"]
                 })
+                all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
     #remove trap from gameboard
     for removaltrap in setforRemoval:
         del tiledata[removaltrap]
@@ -404,6 +403,7 @@ async def funcapi5(file_id: str):
 @app.get("/api-game/fetchplayerstats/{lobby_id}/{user_id}/{component}")
 async def funcapi6(lobby_id:str,user_id:str,component:str):
     playerdata = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data
+    print(playerdata)
     return JSONResponse(content=playerdata[component],status_code=200)
 # @app.get("/api-game/fetch-player-logs/{lobby_id}/{user_id}")
 # async def funcapi7(lobby_id:str,user_id:str):

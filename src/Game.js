@@ -276,16 +276,18 @@ function Game(){
                     }}>
                         <img src={serverurl+"api-game/get_image/status-assests|"+status+".png"} style={{width:"100%",height:"100%"}}></img>
                         <div id='descriptionlabel' style={{position:"absolute",display:"none",flexDirection:"column",fontSize:"12px",background:"white",width:"fitContent",padding:"3px"}}>
-                            <span style={{color:'red',fontWeight:"bold"}}>{status}</span>
-                                {
-                                    playerstatus[status]["data"].map((value)=>{
-                                        <div style={{border:"1px solid black",padding:"2px"}}>
+                            <span style={{color:'red',fontWeight:"bold",marginBottom:"3px"}}>{status}</span>
+                            {
+                                playerstatus[status]["data"].map((value, index)=>{
+                                    return (
+                                        <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
                                             <span>duration: {value["duration"]}</span>
                                             <span>source: {value["source"]}</span>
                                         </div>
-                                    })
-                                }
-                            <span>[{playerstatus[status]["description"]}]</span>
+                                    )
+                                })
+                            }
+                            <span style={{marginTop:"3px",marginBottom:"3px"}}>[{playerstatus[status]["description"]}]</span>
                         </div>
                     </div>
                     statusDivArr.push(div_status)

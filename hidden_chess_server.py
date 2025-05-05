@@ -61,7 +61,9 @@ class playerblueprint():
         "ready":False,
         "player_logs":[],
         "visibletokens":{},
-        "misc_tokenkeys":{}
+        "misc_tokenkeys":{
+            "enemy_location":[] #token #tile
+        }
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -203,10 +205,20 @@ async def rounds(lobby_ID: str):
     updateplayerlogs(lobby_ID,"","Round "+str(all_rooms[lobby_ID].room_data["rounds"]))
 
     #activate each status all player have
-    # for player in allplayers:
-    #     player_status = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["status"]
-    #     for status in player_status:
-    #         print(status)
+    for player in allplayers:
+        player_status = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["status"]
+        for status in player_status:
+            if status=="exposed":
+                trapsetter = get_opposition(allplayers,player)
+                trap_setter_status = all_rooms[lobby_ID].room_data["playerstats"][trapsetter].player_data
+                var1 = trap_setter_status["misc_tokenkeys"]["enemy_location"]
+                if len(var1)!=0:
+                    removeItemFromVisibleToken(var1[0],var1[1],trap_setter_status["visibletokens"])
+                id = setRandomID()
+                trap_setter_status["misc_tokenkeys"]["enemy_location"] = [id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]]
+                addItemToVisibleToken(id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"],trap_setter_status["visibletokens"],True,playerusernames[player])
+                    
+
 
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
@@ -240,8 +252,11 @@ def removeItemFromVisibleToken(tokenID,tile,player_visible_tokens):
         
 
 all_types = ["trp","mov",'atk']
-def get_opposition(players,currentplayer):
-    a=2
+def get_opposition(players,currentplayer): # =============================================================================
+    #return currentplayer
+    for p in players:
+        if currentplayer!=p:
+            return p
 def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
     trap_jsondata = {
         "setter":json_["user"],

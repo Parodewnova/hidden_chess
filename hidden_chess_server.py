@@ -60,7 +60,8 @@ class playerblueprint():
         },
         "ready":False,
         "player_logs":[],
-        "visibletokens":{}
+        "visibletokens":{},
+        "misc_tokenkeys":{}
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -220,19 +221,22 @@ def setRandomID():
     for i in range(0,max):
         toreturn+=var[random.randint(0,(len(var)-1))]
     return toreturn
-def addItemToVisibleToken(tile,player_visible_tokens,enemy,itemname):
+def addItemToVisibleToken(tokenID,tile,player_visible_tokens,enemy,itemname):
     visibletokensformat = {
         "enemy":enemy,
         "itemname":itemname,
     }
-    current = []
+    current = {}
     if tile in player_visible_tokens:
         current = player_visible_tokens[tile]
-    current.append(visibletokensformat)
+    current[tokenID] = visibletokensformat
     player_visible_tokens[tile] = current
-# def removeItemFromVisibleToken(tile,player_visible_tokens,enemy,itemname):
-#     current = player_visible_tokens[tile]
-#     for item in current:
+def removeItemFromVisibleToken(tokenID,tile,player_visible_tokens):
+    current = player_visible_tokens[tile]
+    del current[tokenID]
+    player_visible_tokens[tile] = current
+    if len(current)==0:
+        del player_visible_tokens[tile]
         
 
 all_types = ["trp","mov",'atk']
@@ -249,7 +253,7 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
     split = json_["identifier"].split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]
-        addItemToVisibleToken(json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],False,ability_data["name"])
+        addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],False,ability_data["name"])
         updateplayerlogs(lobbyID,json_["user"],ability_data["name"]+" trap set")
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
@@ -259,7 +263,7 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
         #     continue
         #trigger it
         setforRemoval.append(data)
-        #all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["traps"].remove(data) #remove from setter
+        removeItemFromVisibleToken(data,tile,all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["visibletokens"]) #remove from setter
         split =  tiledata[data]["identifier"].split(":")
         with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
             ability_data = json.load(reader)["serverside"]

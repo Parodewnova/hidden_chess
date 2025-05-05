@@ -110,28 +110,18 @@ function Game(){
                         
                         const display = e.currentTarget.getBoundingClientRect()
                         setminihighlight(
-                            <div id={e.currentTarget.getAttribute("id")} style={{position:"absolute",width:display.width,height:display.height,left:display.left,top:display.top,background:"rgba(211, 211, 211, 0.3)"}}>
-                            </div>
+                            <div id={e.currentTarget.getAttribute("id")} style={{position:"absolute",width:display.width,height:display.height,left:display.left,top:display.top,border:"1px dotted lightgrey"}}></div>
                         )
-                        // const current_display = e.currentTarget.querySelector("#mini_display")
-                        // if(current_display.style.display=="block"){
-                        //     current_display.style.display = "none"
-                        //     minitile_highlight = null
-                        //     setspectatingtile(null)
-                        //     return
-                        // }
-                        // if(minitile_highlight!=null){
-                        //     minitile_highlight.style.display = "none"
-                        // }
-                        // minitile_highlight=current_display
-                        // minitile_highlight.style.display = "block"
-                        const tiledivcomp = !(e.currentTarget.getAttribute("id") in visibletoken)?null:
-                        <div style={{color:"white"}}>
-                            penis
-                        </div>
+                        const tilecontent = visibletoken[e.currentTarget.getAttribute("id")]
+                        const tiledivcomp = []
+                        if(e.currentTarget.getAttribute("id") in visibletoken){
+                            Object.entries(tilecontent).map(([key, value])=>{
+                                tiledivcomp.push(<span style={{cursor:"default",color:value.enemy?"red":"green",fontSize:"11px"}} key={key}>{value.itemname}</span>)
+                            })
+                        }
                         const tilediv =
                         <div style={{top:display.top,left:display.right+10}} className='tilestatuscss'>
-                            <span style={{color:blacked?"red":"white"}}>{blacked?"UNKNOWN?":""}</span>
+                            <span style={{color:blacked?"red":"white",width:"100%"}}>{blacked?"UNKNOWN?":""}</span>
                             {tiledivcomp}
                         </div>
                         setspectatingtile(tilediv)
@@ -146,7 +136,7 @@ function Game(){
                             settiledisplay(e.currentTarget.parentElement.parentElement,tileid)
                             await userReady(lobbyid,json_data)
                         }}></div>
-                        
+                        <img src={serverurl+"api-game/get_image/interest.png"} style={{position:"absolute",left:"5%",top:"5%",display:visibletoken&&visibletoken[tileid]!=null?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
                         <img src={serverurl+"api-game/get_image/Chess.png"} style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
                         <div id='userinteractiontile' highlight-id={tileid} style={{position:"absolute",display:"none"}} className='highlighttilecss' onClick={async (e)=>{
                             if(useractiondone){
@@ -310,7 +300,8 @@ function Game(){
                 continue
             }
             if(event=="update-user-tokens"){
-                setspectatingtile("")
+                setminihighlight(null)
+                setspectatingtile(null)
                 visibletoken = await fetchplayerstats(lobbyid,"visibletokens")
                 continue
             }

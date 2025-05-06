@@ -1,0 +1,7 @@
+{
+    "serverside":{
+        "name":"player-encounter",
+        "effect-duration":1,
+        "effect":["exposed"]
+    }
+}

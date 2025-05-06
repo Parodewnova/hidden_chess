@@ -336,13 +336,12 @@ function Game(){
                 setplayerstatus(statusDivArr)
                 continue
             }
-            if(event=="new-round"){
+            if(event=="reset-abilities-&-actions"){
                 // reset highlighted tiles
                 sethighlightedtile([])
                 clickedAbility = {}
                 setFocusedCard(null)
                 useractiondone = false
-                await newroundfunction(lobbyid)
                 continue
             }
         }

@@ -2,10 +2,10 @@ from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse,Stre
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, File, UploadFile, Request, Response,status, WebSocket
 from pydantic import BaseModel
-from asyncio import Lock
 
 import json,random
 
+test = False
 
 app = FastAPI()
 allowed_origins = ["http://localhost:3000"]
@@ -49,13 +49,18 @@ class roomblueprint():
                 }
 class playerblueprint():
     playerstats_blueprint = {
+        "health":[10,10], #current,max
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":["mov:001","trp:001"],
+        "abilities":[["mov:001",0],["atk:001",0],["trp:001",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
+            #     "description":"you are visible"
+            # }
+            # "bleed":{
+            #     "data":[{"duration":5,"source":"penis-man"}],
             #     "description":"you are visible"
             # }
         },
@@ -181,7 +186,7 @@ async def thebeginning(lobby_ID: str):
         player_stats["visibletiles"] = [player_stats["tilelocation"]]
         all_rooms[lobby_ID].room_data["gameboard"][player_stats["tilelocation"]]["players"].append(player)
 
-    all_rooms[lobby_ID].room_data["rounds"] =1
+    all_rooms[lobby_ID].room_data["rounds"] = 1
     updateplayerlogs(lobby_ID,"","Round 1")
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
@@ -199,13 +204,37 @@ async def nextround(lobby_ID: str):
     
     all_rooms[lobby_ID].room_data["rounds"]+=1
     #check if players are on each other
+    # if not test:
+    #     for player in allplayers:
+    #         opposition = get_opposition(allplayers,player)
+    #         player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
+    #         if player_data["tilelocation"]==all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data["tilelocation"]:
+    #             applyeffect(lobby_ID,"msc:001",opposition)
+
+    #activate each status all player have
     for player in allplayers:
-        opposition = get_opposition(allplayers,player)
-        player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
-        if player_data["tilelocation"]==all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data["tilelocation"]:
-            applyeffect(lobby_ID,"msc:001",opposition)
-    
-    all_rooms[lobby_ID].room_data["rounds"]+=1
+        player_status = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["status"]
+        for status in player_status:
+            if status=="exposed":
+                trapsetter = get_opposition(allplayers,player)
+                trap_setter_status = all_rooms[lobby_ID].room_data["playerstats"][trapsetter].player_data
+                var1 = trap_setter_status["misc_tokenkeys"]["enemy_location"]
+                if len(var1)!=0:
+                    removeItemFromVisibleToken(var1[0],var1[1],trap_setter_status["visibletokens"])
+                id = setRandomID()
+                trap_setter_status["misc_tokenkeys"]["enemy_location"] = [id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]]
+                addItemToVisibleToken(id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"],trap_setter_status["visibletokens"],True,playerusernames[player])
+                continue
+            if status=="bleed":
+                player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
+
+    #tick down ability cooldowns
+    for player in allplayers:
+        PB = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
+        for ability_arr in PB["abilities"]:
+            ability_arr[1]-=1
+            if ability_arr[1]<0:
+                ability_arr[1]=0
 
     #tick down status effects
     for player in allplayers:
@@ -232,22 +261,7 @@ async def nextround(lobby_ID: str):
                 removeItemFromVisibleToken(var1[0],var1[1],opposition_data["visibletokens"])
 
     updateplayerlogs(lobby_ID,"","Round "+str(all_rooms[lobby_ID].room_data["rounds"]))
-    for player in allplayers:
-        print(all_rooms[lobby_ID].room_data["playerstats"][player].player_data)
 
-    #activate each status all player have
-    for player in allplayers:
-        player_status = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["status"]
-        for status in player_status:
-            if status=="exposed":
-                trapsetter = get_opposition(allplayers,player)
-                trap_setter_status = all_rooms[lobby_ID].room_data["playerstats"][trapsetter].player_data
-                var1 = trap_setter_status["misc_tokenkeys"]["enemy_location"]
-                if len(var1)!=0:
-                    removeItemFromVisibleToken(var1[0],var1[1],trap_setter_status["visibletokens"])
-                id = setRandomID()
-                trap_setter_status["misc_tokenkeys"]["enemy_location"] = [id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]]
-                addItemToVisibleToken(id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"],trap_setter_status["visibletokens"],True,playerusernames[player])
                     
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
@@ -280,11 +294,23 @@ def removeItemFromVisibleToken(tokenID,tile,player_visible_tokens):
     player_visible_tokens[tile] = current
     if len(current)==0:
         del player_visible_tokens[tile]
-        
+def getserversideabilityinfo(identifier,specific): #'trp:001'
+    type = identifier.split(":")[0]
+    id = identifier.split(":")[1]
+    with open("./abilities/"+type+"/"+id+".json","r") as reader:
+        if(specific==None or specific==""):
+            return json.load(reader)["serverside"]
+        json_loaded = json.load(reader)["serverside"]
+        return json_loaded[specific]
+def player_taking_damage(player_data_json,damage):#player is victim
+    player_data_json["health"][0]-=damage
 
-all_types = ["trp","mov",'atk']
+
+
+all_types = ["trp","mov",'atk','spell']
 def get_opposition(players,currentplayer): # =============================================================================
-    #return currentplayer
+    if test:
+        return currentplayer
     for p in players:
         if currentplayer!=p:
             return p
@@ -294,19 +320,18 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
         "identifier":json_["identifier"]
     }
     trapID = setRandomID()
-    all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
     #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
-    split = json_["identifier"].split(":")
-    with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
-        ability_data = json.load(reader)["serverside"]
-        addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],False,ability_data["name"])
-        updateplayerlogs(lobbyID,json_["user"],ability_data["name"]+" trap set")
+    ability_json = getserversideabilityinfo(json_["identifier"],"")
+    addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],False,ability_json["name"])
+    updateplayerlogs(lobbyID,json_["user"],ability_json["name"]+" trap set")
+    trap_jsondata["invisible"] = ability_json["invisible"]
+    all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
     for data in tiledata:
-        # if tiledata[data]["setter"] == player:
-        #     continue
+        if tiledata[data]["setter"] == player:
+            continue
         #trigger it
         setforRemoval.append(data)
         removeItemFromVisibleToken(data,tile,all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["visibletokens"]) #remove from setter
@@ -314,8 +339,70 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     #remove trap from gameboard
     for removaltrap in setforRemoval:
         del tiledata[removaltrap]
-def applyeffect(lobbyID,affect,player):
-    split =  affect.split(":")
+
+def moving_action(lobbyID,json):
+    moved_player = json["user"]
+    player_data = all_rooms[lobbyID].room_data["playerstats"][moved_player].player_data
+    player_data["visibletiles"].remove(player_data["tilelocation"])
+    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].remove(moved_player)
+    player_data["tilelocation"] = json["tile-touched"]
+    player_data["visibletiles"].append(player_data["tilelocation"])
+    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].append(moved_player)
+    trap_stepped_check(lobbyID,moved_player,json["tile-touched"])
+    updateplayerlogs(lobbyID,moved_player,"You moved")
+def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
+    boarddata = all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["players"]
+    enemy = get_opposition(all_rooms[lobbyID].room_data["players"],json_["user"])
+    if enemy in boarddata:
+        ability_json = getserversideabilityinfo(json_["identifier"],"")
+        print(ability_json)
+        if ability_json["name"]=="strike":
+            player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,ability_json["damage"])
+            applyeffect(lobbyID,json_["identifier"],enemy)
+def spell_action(lobbyID,json_):
+    ability_json = getserversideabilityinfo(json_["identifier"],"")
+    if ability_json["name"]=="scout":
+        applyeffect(lobbyID,json_["identifier"],json_["user"])
+
+# example = {'ipnypFuRME': {'identifier': 'mov:001', 'tile-touched': '2_1'}, 'XOZlJBhVb': {'identifier': 'mov:001', 'tile-touched': '3_4'}}
+def game_operations(lobbyID):
+    allplayers = all_rooms[lobbyID].room_data["players"]
+    gamedata = {}
+    for setter in all_types:
+        gamedata[setter] = []
+    for player in allplayers:
+        PB = all_rooms[lobbyID].room_data["playerstats"][player].player_data
+        round_stats = PB["currentusage"]
+        # get card cooldown and apply it
+        for player_abilities in PB["abilities"]:
+            if(player_abilities[0]==round_stats["identifier"]):
+                player_abilities[1] = (getserversideabilityinfo(round_stats["identifier"],"cooldown")+1)
+                break
+        round_stats["user"] = player # ==> added userID to data
+        gamedata[round_stats["identifier"].split(":")[0]].append(round_stats)
+        PB["currentusage"] = {}
+    for type in all_types:
+        for json_data in gamedata[type]:
+            if(type=="mov"):
+                moving_action(lobbyID,json_data)
+                continue
+            if(type=="atk"):
+                atk_action(lobbyID,json_data)
+                continue
+            if(type=="trp"):
+                set_trap_action(lobbyID,json_data)
+                continue
+            if(type=="spell"):
+                spell_action(lobbyID,json_data)
+                continue
+
+        #after trap set see if anyone is on the traps player movement is afterwards
+        allplayers = all_rooms[lobbyID].room_data["players"]
+        for player in allplayers:
+            playertile = all_rooms[lobbyID].room_data["playerstats"][player].player_data["tilelocation"]
+            trap_stepped_check(lobbyID,player,playertile)
+def applyeffect(lobbyID,abilityidentifier,player): #player here is the victim
+    split =  abilityidentifier.split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]
         for effect in ability_data["effect"]:
@@ -330,43 +417,6 @@ def applyeffect(lobbyID,affect,player):
                 "source":ability_data["name"]
             })
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
-    
-def moving_action(lobbyID,json):
-    moved_player = json["user"]
-    player_data = all_rooms[lobbyID].room_data["playerstats"][moved_player].player_data
-    player_data["visibletiles"].remove(player_data["tilelocation"])
-    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].remove(moved_player)
-    player_data["tilelocation"] = json["tile-touched"]
-    player_data["visibletiles"].append(player_data["tilelocation"])
-    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].append(moved_player)
-    trap_stepped_check(lobbyID,moved_player,json["tile-touched"])
-    updateplayerlogs(lobbyID,moved_player,"You moved")
-
-# example = {'ipnypFuRME': {'identifier': 'mov:001', 'tile-touched': '2_1'}, 'XOZlJBhVb': {'identifier': 'mov:001', 'tile-touched': '3_4'}}
-def game_operations(lobbyID):
-    allplayers = all_rooms[lobbyID].room_data["players"]
-    gamedata = {"trp":[],"mov":[],"atk":[]}
-    for player in allplayers:
-        round_stats = all_rooms[lobbyID].room_data["playerstats"][player].player_data["currentusage"]
-        round_stats["user"] = player # ==> added userID to data
-        gamedata[round_stats["identifier"].split(":")[0]].append(round_stats)
-        all_rooms[lobbyID].room_data["playerstats"][player].player_data["currentusage"] = {}
-    for type in all_types:
-        for json_data in gamedata[type]:
-            if(type=="mov"):
-                moving_action(lobbyID,json_data)
-                continue
-            if(type=="atk"):
-                continue
-            if(type=="trp"):
-                set_trap_action(lobbyID,json_data)
-                continue
-
-        #after trap set see if anyone is on the traps player movement is afterwards
-        allplayers = all_rooms[lobbyID].room_data["players"]
-        for player in allplayers:
-            playertile = all_rooms[lobbyID].room_data["playerstats"][player].player_data["tilelocation"]
-            trap_stepped_check(lobbyID,player,playertile)
 
 
     
@@ -381,8 +431,9 @@ async def funcapi1(lobby_ID: str, request:Request):
     readystate = body_json["readystate"]
 
     allplayers = all_rooms[lobby_ID].room_data["players"]
-    # if(len(allplayers)!=2): #SEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    #     return
+    if not test:
+        if(len(allplayers)!=2): #SEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+            return
     begin_game = True
     for player in allplayers:
         if(player==user_ID):
@@ -394,7 +445,6 @@ async def funcapi1(lobby_ID: str, request:Request):
             all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["tilelocation"] = body_json["tile"]
         if(mode=="useraction"):
              all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["currentusage"] = body_json["ability"]
-
 
     if not all_rooms[lobby_ID].room_data["ongoing"]: # not ongoing means starting game
         await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
@@ -443,16 +493,28 @@ async def funcapi3(lobby_id:str,user_ID:str):
         to_add = player_data["visibletiles"]
     content = {}
     for item in to_add:
-        content[item] = all_rooms[lobby_id].room_data["gameboard"][item]
+        filtercontent = dict(all_rooms[lobby_id].room_data["gameboard"][item])
+        #remove all invisible enemy traps
+        to_remove = [] 
+        for trap_ID in filtercontent["traps"]:
+            trapcontent = filtercontent["traps"][trap_ID]
+            trapcontent["source"] = getserversideabilityinfo(trapcontent["identifier"],"name")
+            if trapcontent["setter"] == user_ID:
+                continue
+            if trapcontent["invisible"]:
+                to_remove.append(trap_ID)
+        for remove in to_remove:
+            del filtercontent["traps"][remove]
+        content[item] = filtercontent
     #content[user_ID] = player_data["tilelocation"]
     return JSONResponse(content=content,status_code=200)
 @app.get("/api-game/displayabilitygui/{lobby_id}/{userID}")
 async def funcapi4(lobby_id:str,userID:str):
     abilityjson = {}
-    ability_identifyers = all_rooms[lobby_id].room_data["playerstats"][userID].player_data["abilities"]
+    ability_identifyers = all_rooms[lobby_id].room_data["playerstats"][userID].player_data["abilities"] #[0] identifier [1] cooldown
     for code in ability_identifyers:
-        type = code.split(":")[0]
-        id = code.split(":")[1]
+        type = code[0].split(":")[0]
+        id = code[0].split(":")[1]
         with open("./abilities/"+type+"/"+id+".json","r") as reader:
             json_loaded = json.load(reader)["clientside"]
             abilityjson[json_loaded["name"]] = {
@@ -461,6 +523,7 @@ async def funcapi4(lobby_id:str,userID:str):
                 "tileformat":json_loaded["tileformat"],
                 "cooldown":json_loaded["cooldown"],
                 "damage":json_loaded["damage"],
+                "currentcooldown":code[1]
             }
     return JSONResponse(content=abilityjson,status_code=200)
 @app.get("/api-game/get_image/{file_id}")

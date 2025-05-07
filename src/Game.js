@@ -80,6 +80,10 @@ function Game(){
 
     async function fetchgameboarddisplay(game_details){
         const reply = await fetch(serverurl+"api-game/fetchgameboard/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
+        console.log(reply)
+        // update player health
+        const playerhp = await fetchplayerstats(lobbyid,"health")
+        const percentage = (playerhp[0]/playerhp[1])*100
         var x_start = 0,y_start = getstorage("boardheight")-1
         const inverse = game_details["leader"]!=getstorage("userID")
         if(inverse){
@@ -112,18 +116,40 @@ function Game(){
                         setminihighlight(
                             <div id={e.currentTarget.getAttribute("id")} style={{position:"absolute",width:display.width,height:display.height,left:display.left,top:display.top,border:"1px dotted lightgrey"}}></div>
                         )
-                        const tilecontent = visibletoken[e.currentTarget.getAttribute("id")]
-                        const tiledivcomp = []
-                        if(e.currentTarget.getAttribute("id") in visibletoken){
-                            Object.entries(tilecontent).map(([key, value])=>{
-                                tiledivcomp.push(<span style={{cursor:"default",color:value.enemy?"red":"green",fontSize:"11px"}} key={key}>{value.itemname}</span>)
-                            })
+                        let tilediv = null
+                        if(!(tileid in reply)){
+                            const tilecontent = visibletoken[e.currentTarget.getAttribute("id")]
+                            const tiledivcomp = []
+                            if(e.currentTarget.getAttribute("id") in visibletoken){
+                                Object.entries(tilecontent).map(([key, value])=>{
+                                    tiledivcomp.push(<span style={{cursor:"default",color:value.enemy?"red":"green",fontSize:"11px"}} key={key}>{value.itemname}</span>)
+                                })
+                            }
+                            tilediv =
+                            <div style={{top:display.top,left:display.right+10,cursor:"default"}} className='tilestatuscss'>
+                                <span style={{color:blacked?"red":"white",width:"100%"}}>{blacked?"UNKNOWN?":""}</span>
+                                {tiledivcomp}
+                            </div>
                         }
-                        const tilediv =
-                        <div style={{top:display.top,left:display.right+10}} className='tilestatuscss'>
-                            <span style={{color:blacked?"red":"white",width:"100%"}}>{blacked?"UNKNOWN?":""}</span>
-                            {tiledivcomp}
-                        </div>
+                        else{
+                            const tilecontent = reply[e.currentTarget.getAttribute("id")]
+                            tilediv = 
+                                <div style={{top:display.top,left:display.right+10,cursor:"default",fontSize:"12px"}} className='tilestatuscss'>
+                                    <div style={{width:"100%",display:"flex",flexDirection:"column",color:"wheat"}} >
+                                        PLAYERS
+                                        {Object.entries(tilecontent["players"]).map(([key, value])=>{
+                                            return <span style={{color:value!=getstorage("userID")?"red":"green",fontSize:"11px"}} key={key}>{value}</span>
+                                        })}
+                                    </div>
+                                    <span style={{height:"3px"}}></span>
+                                    <div style={{width:"100%",display:"flex",flexDirection:"column",color:"wheat"}} >
+                                        TRAPS
+                                        {Object.entries(tilecontent["traps"]).map(([key, value])=>{
+                                            return <span style={{color:value["setter"]!=getstorage("userID")?"red":"green",fontSize:"11px"}} key={key}>{value["source"]}</span>
+                                        })}
+                                    </div>
+                                </div>
+                        }
                         setspectatingtile(tilediv)
                     }}>
                         <div id={`starting_tile~${tileid}`} style={{display:clickable?"block":"none"}} className='clickabletilediv' onClick={async (e)=>{
@@ -136,8 +162,12 @@ function Game(){
                             settiledisplay(e.currentTarget.parentElement.parentElement,tileid)
                             await userReady(lobbyid,json_data)
                         }}></div>
-                        <img src={serverurl+"api-game/get_image/interest.png"} style={{position:"absolute",left:"5%",top:"5%",display:visibletoken&&visibletoken[tileid]!=null?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
+                        <img src={serverurl+"api-game/get_image/visible.png"} style={{position:"absolute",left:"5%",top:"5%",display:game_details["ongoing"]&&tileid in reply?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
+                        <img src={serverurl+"api-game/get_image/interest.png"} style={{position:"absolute",left:"5%",top:"5%",display:!(tileid in reply)&&visibletoken&&visibletoken[tileid]!=null?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
                         <img src={serverurl+"api-game/get_image/Chess.png"} style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
+                        <div style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",position:"absolute",bottom:"5%",left:"5%",width:"90%",height:"5px",background:"red"}}>
+                            <div style={{position:"absolute",height:"100%",background:"green",width:`${percentage}%`}}></div>
+                        </div>
                         <div id='userinteractiontile' highlight-id={tileid} style={{position:"absolute",display:"none"}} className='highlighttilecss' onClick={async (e)=>{
                             if(useractiondone){
                                 return
@@ -219,9 +249,13 @@ function Game(){
             const description = reply[name]["description"]
             const identifier = reply[name]["identifier"]
             const tileformat = reply[name]["tileformat"]
+            const cardcooldown = reply[name]["currentcooldown"]
             
             const card = 
-                <div className="card-popup" id={identifier} onClick={(e)=>{
+                <div style={{background:cardcooldown!=0?"rgba(0.5,0.5,0.5,0.5)":null,cursor:"pointer"}} className="card-popup" id={identifier} onClick={(e)=>{
+                    if(cardcooldown!=0){
+                        return
+                    }
                     if(useractiondone){
                         return
                     }
@@ -269,7 +303,6 @@ function Game(){
         const reply = (await fetchplayerstats(lobbyid,"tilelocation"))
         sethighlightedtile(convertTileFormat(reply,tileformat,leader))
     }
-
     async function handleServerMessages(message){ //json format
         const gameinfo = {
             "leader":message["leader"],

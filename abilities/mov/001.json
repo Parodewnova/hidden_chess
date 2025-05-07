@@ -8,9 +8,9 @@
         "description":"move to a tile"
     },
     "serverside":{
+        "damage":0,
+        "cooldown":0,
         "id":"001",
-        "type":"mov",
-        "dmg":0,
-        "cd":0
+        "type":"mov"
     }
 }

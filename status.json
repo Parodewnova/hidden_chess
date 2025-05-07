@@ -1,5 +1,12 @@
 {
     "exposed":{
         "description":"you are visible"
+    },
+    "bleed":{
+        "damage":2,
+        "description":"bleeding out, losing health"
+    },
+    "UAV":{
+        "description":"revealing tiles"
     }
 }

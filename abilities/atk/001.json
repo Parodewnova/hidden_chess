@@ -1,0 +1,17 @@
+{
+    "clientside":{
+        "name":"strike",
+        "identifier":"atk:001",
+        "damage":2,
+        "cooldown":0,
+        "tileformat":"x-L",
+        "description":"Stabs the front tile & applies bleed for 3 rounds"
+    },
+    "serverside":{
+        "damage":2,
+        "cooldown":0,
+        "name":"strike",
+        "effect-duration":3,
+        "effect":["bleed"]
+    }
+}

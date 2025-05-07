@@ -8,8 +8,11 @@
         "description":"Sets an invisible mine that reveals enemy current location for 2 rounds when stepped on"
     },
     "serverside":{
+        "damage":0,
+        "cooldown":1,
         "name":"sensor-mine",
         "effect-duration":2,
-        "effect":["exposed"]
+        "effect":["exposed"],
+        "invisible":true
     }
 }

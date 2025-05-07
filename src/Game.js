@@ -77,7 +77,6 @@ function Game(){
         setstorage("boardheight",reply["height"])
         setLoaded(true)
     }
-
     async function fetchgameboarddisplay(game_details){
         const reply = await fetch(serverurl+"api-game/fetchgameboard/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
         console.log(reply)
@@ -207,7 +206,6 @@ function Game(){
             </div>
         )
     }
-
     async function fetchplayerlist(game_details){
         const reply = await fetch(serverurl+"api-game/fetchplayerlist/"+lobbyid).then((response)=>response.json()).then((data)=>data)
         const playerlist = reply["players"]
@@ -355,8 +353,14 @@ function Game(){
                                 playerstatus[status]["data"].map((value, index)=>{
                                     return (
                                         <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
-                                            <span>duration: {value["duration"]}</span>
-                                            <span>source: {value["source"]}</span>
+                                            {Object.entries(value).map(([key, value]) =>{
+                                                    return (
+                                                        <span key={key}>{key}: {value}</span>
+                                                    )
+                                        
+                                            })}
+                                            {/* <span>duration: {value["duration"]}</span>
+                                            <span>source: {value["source"]}</span> */}
                                         </div>
                                     )
                                 })

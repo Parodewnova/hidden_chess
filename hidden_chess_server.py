@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 import json,random
 
-test = False
+test = True
 
 app = FastAPI()
 allowed_origins = ["http://localhost:3000"]
@@ -53,14 +53,18 @@ class playerblueprint():
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":[["mov:001",0],["atk:001",0],["trp:001",0]],
+        "abilities":[["mov:001",0],["atk:001",0],["trp:001",0],["spell:001",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
             #     "description":"you are visible"
             # }
             # "bleed":{
-            #     "data":[{"duration":5,"source":"penis-man"}],
+            #     "data":[{"duration":3,"source":"penis-man"}],
+            #     "description":"you are visible"
+            # }
+            # "UAV":{
+            #     "data":[{"duration":3,"source":"penis-man"}],
             #     "description":"you are visible"
             # }
         },
@@ -227,6 +231,12 @@ async def nextround(lobby_ID: str):
                 continue
             if status=="bleed":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
+            if status=="UAV":
+                UAV_data = player_status[status]["data"]
+                for data in UAV_data:
+                    tile_toreveal = data["tiles"].replace("'","").replace("[","").replace("]","").replace(" ","").split(",")
+                    for tile in tile_toreveal:
+                        all_rooms[lobby_ID].room_data["playerstats"][player].player_data["visibletiles"].append(tile)
 
     #tick down ability cooldowns
     for player in allplayers:
@@ -249,6 +259,10 @@ async def nextround(lobby_ID: str):
                 if(status1["duration"]==0 or status1["duration"]<0):
                     markforremoval.append(i)
             for indextoremove in sorted(markforremoval,reverse=True):
+                if(status=="UAV"): # remove the visible tiles
+                    tile_toremove = status_arr[indextoremove]["tiles"].replace("'","").replace("[","").replace("]","").replace(" ","").split(",")
+                    for tile in tile_toremove:
+                        all_rooms[lobby_ID].room_data["playerstats"][player].player_data["visibletiles"].remove(tile)
                 del status_arr[indextoremove]
             if(len(status_arr)==0):
                 markforremoval_main.append(status)
@@ -362,7 +376,7 @@ def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
 def spell_action(lobbyID,json_):
     ability_json = getserversideabilityinfo(json_["identifier"],"")
     if ability_json["name"]=="scout":
-        applyeffect(lobbyID,json_["identifier"],json_["user"])
+        applyeffect(lobbyID,json_["identifier"],json_["user"],[json_["tile-touched"],"3_0"])
 
 # example = {'ipnypFuRME': {'identifier': 'mov:001', 'tile-touched': '2_1'}, 'XOZlJBhVb': {'identifier': 'mov:001', 'tile-touched': '3_4'}}
 def game_operations(lobbyID):
@@ -417,7 +431,23 @@ def applyeffect(lobbyID,abilityidentifier,player): #player here is the victim
                 "source":ability_data["name"]
             })
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
-
+def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim this is for status that affect tiles tilesAffected is arr
+    split =  abilityidentifier.split(":")
+    with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
+        ability_data = json.load(reader)["serverside"]
+        for effect in ability_data["effect"]:
+            effect_json = {
+                "data":[],
+                "description":all_status[effect]["description"]
+            }
+            if effect in all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"]:
+                effect_json = all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect]
+            effect_json["data"].append({
+                "duration":ability_data["effect-duration"]+1,
+                "source":ability_data["name"],
+                "tiles":str(tilesAffected).replace("'","")
+            })
+            all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
 
     
 

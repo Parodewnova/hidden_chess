@@ -11,6 +11,8 @@
         "damage":0,
         "cooldown":0,
         "id":"001",
-        "type":"mov"
+        "type":"mov",
+        "tileformat":"oxo-xLx-oxo",
+        "select-type":"single"
     }
 }

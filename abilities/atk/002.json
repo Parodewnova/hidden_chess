@@ -1,0 +1,19 @@
+{
+    "clientside":{
+        "name":"flamethrower",
+        "identifier":"atk:002",
+        "damage":0,
+        "cooldown":1,
+        "tileformat":"x-x-L",
+        "description":"applies burn for 3 rounds to 2 tiles in front"
+    },
+    "serverside":{
+        "damage":0,
+        "cooldown":1,
+        "name":"flamethrower",
+        "effect-duration":3,
+        "effect":["burn"],
+        "tileformat":"x-x-L",
+        "select-type":"fixed"
+    }
+}

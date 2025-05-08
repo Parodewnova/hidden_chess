@@ -4,9 +4,9 @@
         "tooltip":"enemy can see you"
     },
     "bleed":{
-        "damage":1,
+        "damage":2,
         "description":"bleeding out, losing health",
-        "tooltip":"-1hp every round"
+        "tooltip":"-2hp every round"
     },
     "burn":{
         "damage":1,

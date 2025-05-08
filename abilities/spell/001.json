@@ -12,6 +12,8 @@
         "cooldown":2,
         "name":"scout",
         "effect-duration":5,
-        "effect":["UAV"]
+        "effect":["UAV"],
+        "tileformat":"L",
+        "select-type":"single"
     }
 }

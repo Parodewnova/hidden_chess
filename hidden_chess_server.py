@@ -54,7 +54,7 @@ class playerblueprint():
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":[["mov:001",0],["trp:001",0],["trp:002",0],["trp:003",0],["atk:001",0],["spell:001",0]],
+        "abilities":[["mov:001",0],["trp:001",0],["trp:002",0],["trp:003",0],["atk:002",0],["spell:001",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
@@ -371,18 +371,19 @@ def get_opposition(players,currentplayer): # ===================================
     for p in players:
         if currentplayer!=p:
             return p
-def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
+def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
     trap_jsondata = {
         "setter":json_["user"],
         "identifier":json_["identifier"]
     }
-    trapID = setRandomID()
-    #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
-    ability_json = getserversideabilityinfo(json_["identifier"],"")
-    addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],[False,ability_json["name"],"traps"])
-    updateplayerlogs(lobbyID,json_["user"],f"|stylecolor:#71706E###{ability_json['name']}|styletrap set")
-    trap_jsondata["invisible"] = ability_json["invisible"]
-    all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
+    for tile_touched in json_["tile-touched"]:
+        trapID = setRandomID()
+        #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
+        ability_json = getserversideabilityinfo(json_["identifier"],"")
+        addItemToVisibleToken(trapID,tile_touched,all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],[False,ability_json["name"],"traps"])
+        updateplayerlogs(lobbyID,json_["user"],f"|stylecolor:#71706E###{ability_json['name']}|styletrap set")
+        trap_jsondata["invisible"] = ability_json["invisible"]
+        all_rooms[lobbyID].room_data["gameboard"][tile_touched]["traps"][trapID] = trap_jsondata
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
@@ -407,28 +408,32 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
         del tiledata[removaltrap]
 
 def moving_action(lobbyID,json):
-    moved_player = json["user"]
-    player_data = all_rooms[lobbyID].room_data["playerstats"][moved_player].player_data
-    player_data["visibletiles"].remove(player_data["tilelocation"])
-    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].remove(moved_player)
-    player_data["tilelocation"] = json["tile-touched"]
-    player_data["visibletiles"].append(player_data["tilelocation"])
-    all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].append(moved_player)
-    trap_stepped_check(lobbyID,moved_player,json["tile-touched"])
-    updateplayerlogs(lobbyID,moved_player,"You moved")
-def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
-    boarddata = all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["players"]
-    enemy = get_opposition(all_rooms[lobbyID].room_data["players"],json_["user"])
-    ability_json = getserversideabilityinfo(json_["identifier"],"")
-    if enemy in boarddata:
-        updateplayerlogs(lobbyID,json_["user"],f"hit |stylebold:true###{playerusernames[enemy]}|stylefor|stylecolor:#FF0000###{ability_json['damage']} damage|styleusing|stylecolor:#71706E###{ability_json['name']}")
-        updateplayerlogs(lobbyID,enemy,f"hit by |stylecolor:#71706E###{ability_json['name']}|stylefor|stylecolor:#FF0000###{ability_json['damage']} damage")
-        if ability_json["name"]=="strike":
-            player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,ability_json["damage"])
-            applyeffect(lobbyID,json_["identifier"],enemy)
-    else:
+    for tile_touched in json["tile-touched"]:
+        moved_player = json["user"]
+        player_data = all_rooms[lobbyID].room_data["playerstats"][moved_player].player_data
+        player_data["visibletiles"].remove(player_data["tilelocation"])
+        all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].remove(moved_player)
+        player_data["tilelocation"] = tile_touched
+        player_data["visibletiles"].append(player_data["tilelocation"])
+        all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].append(moved_player)
+        trap_stepped_check(lobbyID,moved_player,tile_touched)
+        updateplayerlogs(lobbyID,moved_player,"You moved")
+def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
+    touched = False
+    for tile_touched in json_["tile-touched"]:
+        boarddata = all_rooms[lobbyID].room_data["gameboard"][tile_touched]["players"]
+        enemy = get_opposition(all_rooms[lobbyID].room_data["players"],json_["user"])
+        ability_json = getserversideabilityinfo(json_["identifier"],"")
+        if enemy in boarddata:
+            touched = True
+            updateplayerlogs(lobbyID,json_["user"],f"hit |stylebold:true###{playerusernames[enemy]}|stylefor|stylecolor:#FF0000###{ability_json['damage']} damage|styleusing|stylecolor:#71706E###{ability_json['name']}")
+            updateplayerlogs(lobbyID,enemy,f"hit by |stylecolor:#71706E###{ability_json['name']}|stylefor|stylecolor:#FF0000###{ability_json['damage']} damage")
+            if ability_json["name"]=="strike":
+                player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,ability_json["damage"])
+                applyeffect(lobbyID,json_["identifier"],enemy)
+    if not touched:
         updateplayerlogs(lobbyID,json_["user"],f"used |stylecolor:#71706E###{ability_json['name']}|style and it missed")
-def spell_action(lobbyID,json_):
+def spell_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
     ability_json = getserversideabilityinfo(json_["identifier"],"")
     if ability_json["name"]=="scout":
         applySpecialeffect(lobbyID,json_["identifier"],json_["user"],[json_["tile-touched"]])
@@ -452,6 +457,10 @@ def game_operations(lobbyID):
                 player_abilities[1] = (getserversideabilityinfo(round_stats["identifier"],"cooldown")+1)
                 break
         round_stats["user"] = player # ==> added userID to data
+        if getserversideabilityinfo(round_stats["identifier"],"select-type") == "fixed":
+            getTilesfromStructure(PB["tilelocation"],getserversideabilityinfo(round_stats["identifier"],"tileformat"))
+        else:
+            round_stats["tile-touched"] = [round_stats["tile-touched"]]
         gamedata[round_stats["identifier"].split(":")[0]].append(round_stats)
         PB["currentusage"] = {}
     for type in all_types:
@@ -516,6 +525,8 @@ def applySpecialeffect(lobbyID,abilityidentifier,player,tilesAffected): #player 
                 "tiles":str(tilesAffected).replace("'","")
             })
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
+def getTilesfromStructure(userTile,structure):
+    print("PENIS")
 
     
 
@@ -615,14 +626,20 @@ async def funcapi4(lobby_id:str,userID:str):
         id = code[0].split(":")[1]
         with open("./abilities/"+type+"/"+id+".json","r") as reader:
             json_loaded = json.load(reader)["clientside"]
-            abilityjson[json_loaded["name"]] = {
-                "identifier":json_loaded["identifier"],
-                "description":json_loaded["description"],
-                "tileformat":json_loaded["tileformat"],
-                "cooldown":json_loaded["cooldown"],
-                "damage":json_loaded["damage"],
+            sub_json = {
                 "currentcooldown":code[1]
             }
+            for key in json_loaded:
+                sub_json[key] = json_loaded[key]
+            abilityjson[json_loaded["name"]] = sub_json
+            # abilityjson[json_loaded["name"]] = {
+            #     "identifier":json_loaded["identifier"],
+            #     "description":json_loaded["description"],
+            #     "tileformat":json_loaded["tileformat"],
+            #     "cooldown":json_loaded["cooldown"],
+            #     "damage":json_loaded["damage"],
+            #     "currentcooldown":code[1]
+            # }
     return JSONResponse(content=abilityjson,status_code=200)
 @app.get("/api-game/get_image/{file_id}")
 async def funcapi5(file_id: str):

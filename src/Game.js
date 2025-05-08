@@ -335,13 +335,11 @@ function Game(){
             
             cards.push(card)
         }
-            setShowCard(
-                <div className="card-container">
-                {cards}
-                </div>
-            )
-        
-        
+        setShowCard(
+            <div className="card-container">
+            {cards}
+            </div>
+        )
     }
     async function setTilesToHighlight(tileformat,leader) {
         const reply = await fetchplayerstats(lobbyid,"tilelocation")
@@ -546,9 +544,7 @@ function Game(){
                                             <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
                                                 {Object.entries(value).map(([key, value]) =>{
                                                     if(key!="skip"){
-                                                        return (
-                                                            <span key={key}>{key}: {value}</span>
-                                                        )
+                                                        <span>{key}: {value[key]}</span>
                                                     }
                                             
                                                 })}

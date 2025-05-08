@@ -13,6 +13,8 @@
         "name":"inciendary-mine",
         "effect-duration":2,
         "effect":["burn"],
-        "invisible":false
+        "invisible":false,
+        "tileformat":"xxxxx-xxxxx-xxLxx-xxxxx-xxxxx",
+        "select-type":"single"
     }
 }

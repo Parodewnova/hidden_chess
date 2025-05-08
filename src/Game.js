@@ -545,9 +545,11 @@ function Game(){
                                         return (
                                             <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
                                                 {Object.entries(value).map(([key, value]) =>{
+                                                    if(key!="skip"){
                                                         return (
                                                             <span key={key}>{key}: {value}</span>
                                                         )
+                                                    }
                                             
                                                 })}
                                                 {/* <span>duration: {value["duration"]}</span>

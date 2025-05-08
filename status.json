@@ -14,7 +14,6 @@
         "tooltip":"-1hp every round"
     },
     "poison":{
-        "damage":0,
         "description":"you are poisoned",
         "tooltip":"-hp for each stack, stack reduces by 1 every round"
     },

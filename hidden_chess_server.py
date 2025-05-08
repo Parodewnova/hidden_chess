@@ -5,7 +5,8 @@ from pydantic import BaseModel
 
 import json,random
 
-test = True
+test = False
+trigger_own_trap = False
 
 app = FastAPI()
 allowed_origins = ["http://localhost:3000"]
@@ -53,7 +54,7 @@ class playerblueprint():
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":[["mov:001",0],["trp:001",0],["trp:002",0],["trp:003",0],["atk:001",0]],
+        "abilities":[["mov:001",0],["trp:001",0],["trp:002",0],["trp:003",0],["atk:001",0],["spell:001",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
@@ -232,12 +233,27 @@ async def nextround(lobby_ID: str):
             if status=="bleed":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
                 updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['bleed']['damage']} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###[bleed]")
+                continue
+            if status=="burn":
+                player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["burn"]["damage"])
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['burn']['damage']} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['burn']['tooltip'].replace(' ','~')}###[burn]")
+                continue
+            if status=="poison":
+                player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
+                if player_data["status"]["poison"]["data"][0]["skip"]:
+                    player_data["status"]["poison"]["data"][0]["skip"] = False
+                    continue
+                damage = player_data["status"]["poison"]["data"][0]["potency"]
+                player_taking_damage(player_data,damage)
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#341539###{damage} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['poison']['tooltip'].replace(' ','~')}###[poison]")
+                continue
             if status=="UAV":
                 UAV_data = player_status[status]["data"]
                 for data in UAV_data:
                     tile_toreveal = data["tiles"].replace("'","").replace("[","").replace("]","").replace(" ","").split(",")
                     for tile in tile_toreveal:
                         all_rooms[lobby_ID].room_data["playerstats"][player].player_data["visibletiles"].append(tile)
+                continue
 
     #tick down ability cooldowns
     for player in allplayers:
@@ -254,6 +270,12 @@ async def nextround(lobby_ID: str):
         for status in player_status:
             status_arr = player_status[status]["data"]
             markforremoval = []
+            if(status=="poison"):
+                poison_content = status_arr[0]
+                poison_content["potency"]-=1
+                if(poison_content["potency"]<=0):
+                    markforremoval_main.append(status)
+                continue
             for i in range(0,len(status_arr)):
                 status1 = status_arr[i]
                 status1["duration"]-=1
@@ -267,14 +289,18 @@ async def nextround(lobby_ID: str):
                 del status_arr[indextoremove]
             if(len(status_arr)==0):
                 markforremoval_main.append(status)
+        expiredStatusText = "["
         for remove in markforremoval_main:
             del player_status[remove]
+            expiredStatusText+=f"|stylecolor:#BA8E23,tooltip:{all_status[remove]['tooltip'].replace(' ','~')}###{remove}|style "
+            expiredStatusText = expiredStatusText.rstrip().replace(" ",",")+"]"
             if(remove=="exposed"):
                 opposition = get_opposition(allplayers,player)
                 opposition_data = all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data
                 var1 = opposition_data["misc_tokenkeys"]["enemy_location"]
                 removeItemFromVisibleToken(var1[0],var1[1],opposition_data["visibletokens"])
-                updateplayerlogs(lobby_ID,player,"you are no longer|stylecolor:#BA8E23,tooltip:{all_status['exposed']['tooltip'].replace(' ','~')}###exposed")
+        if not expiredStatusText=="[":
+            updateplayerlogs(lobby_ID,player,f"{expiredStatusText} has expired")
 
     #check for player hp and if its over
     player_lost = []
@@ -361,8 +387,9 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
     for data in tiledata:
-        if tiledata[data]["setter"] == player:
-            continue
+        if not trigger_own_trap:
+            if tiledata[data]["setter"] == player:
+                continue
         #trigger it
         setforRemoval.append(data)
         trap_json = getserversideabilityinfo(tiledata[data]["identifier"],"")
@@ -458,10 +485,19 @@ def applyeffect(lobbyID,abilityidentifier,player): #player here is the victim
             }
             if effect in all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"]:
                 effect_json = all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect]
-            effect_json["data"].append({
-                "duration":ability_data["effect-duration"]+1,
-                "source":ability_data["name"]
-            })
+            if(effect=="poison"):
+                if len(effect_json["data"])==0:
+                    effect_json["data"].append({
+                        "potency":ability_data["effect-duration"]+1,
+                        "skip":True
+                    })
+                else:
+                    effect_json["data"][0]["potency"]+=ability_data["effect-duration"]
+            else:
+                effect_json["data"].append({
+                    "duration":ability_data["effect-duration"]+1,
+                    "source":ability_data["name"]
+                })
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
 def applySpecialeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim this is for status that affect tiles tilesAffected is arr
     split =  abilityidentifier.split(":")

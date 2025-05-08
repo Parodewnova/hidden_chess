@@ -4,4 +4,5 @@
 player names are always bold
 atk/trp card names = #71706E
 PHYSICAL damage = #FF0000
+POISON damage = #341539
 effects = #BA8E23

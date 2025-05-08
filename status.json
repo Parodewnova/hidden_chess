@@ -1,12 +1,25 @@
 {
     "exposed":{
-        "description":"you are visible"
+        "description":"you are visible",
+        "tooltip":"enemy can see you"
     },
     "bleed":{
-        "damage":2,
-        "description":"bleeding out, losing health"
+        "damage":1,
+        "description":"bleeding out, losing health",
+        "tooltip":"-1hp every round"
+    },
+    "burn":{
+        "damage":1,
+        "description":"scalding",
+        "tooltip":"-1hp every round"
+    },
+    "poison":{
+        "damage":0,
+        "description":"you are poisoned",
+        "tooltip":"-hp for each stack, stack reduces by 1 every round"
     },
     "UAV":{
-        "description":"revealing tiles"
+        "description":"revealing tiles",
+        "tooltip":""
     }
 }

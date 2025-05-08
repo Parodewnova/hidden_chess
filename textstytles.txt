@@ -1,0 +1,7 @@
+|stylesize:2,bold:true,color:0000ff###{content} |style penis man
+
+
+player names are always bold
+atk/trp card names = #71706E
+PHYSICAL damage = #FF0000
+effects = #BA8E23

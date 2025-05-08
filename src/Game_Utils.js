@@ -1,6 +1,9 @@
 import {serverurl,getstorage,setstorage} from "./index.js"
 
 
+
+
+
 export async function userReady(lobbyid,dynamicJSON){
     const reply = await fetch(serverurl+"api-game/userready/"+lobbyid,{
         method:"POST",
@@ -61,7 +64,7 @@ export function convertTileFormat(cood,structure,leader){ // cood is 2_0 3_3 in 
     const coodinates = cood.split("_")
     const total_coods = []
     const arr = structure.split("-")
-    const YindexL = arr.flatMap((val, index) => val.includes("L") ? [index] : [])[0];
+    const YindexL = arr.flatMap((val, index) => val.includes("L") ? [index] : [])[0]
     const XindexL = arr[YindexL].indexOf("L")
 
     let Y = -1;

@@ -1,0 +1,18 @@
+{
+    "clientside":{
+        "name":"inciendary-mine",
+        "identifier":"trp:002",
+        "damage":2,
+        "cooldown":3,
+        "tileformat":"xxxxx-xxxxx-xxLxx-xxxxx-xxxxx",
+        "description":"Sets a mine that damages the enemy and applies burn for 2 rounds"
+    },
+    "serverside":{
+        "damage":2,
+        "cooldown":3,
+        "name":"inciendary-mine",
+        "effect-duration":2,
+        "effect":["burn"],
+        "invisible":false
+    }
+}

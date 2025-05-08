@@ -23,7 +23,7 @@ with open("./status.json","r") as reader:
 
 playerusernames = {}
 
-max_logsize = 30
+max_logsize = 10
 gameboard_size = [5,5] # row,height
 class roomblueprint():
     roomjson_blueprint = {
@@ -53,7 +53,7 @@ class playerblueprint():
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":[["mov:001",0],["atk:001",0],["trp:001",0],["spell:001",0],["spell:002",0]],
+        "abilities":[["mov:001",0],["trp:001",0],["trp:002",0],["trp:003",0],["atk:001",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
@@ -136,19 +136,19 @@ def updateplayerlogs(lobby_ID,player,message):
 async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     await websocket.accept()
     registered_guests[userID] = websocket
-    updateplayerlogs(lobbyID,userID,playerusernames[userID]+" joined the lobby")
+    updateplayerlogs(lobbyID,userID,f"|stylebold:true###{playerusernames[userID]}|style        joined the lobby")
 
 
     for player in all_rooms[lobbyID].room_data["players"]:
         if player!=userID:
-            updateplayerlogs(lobbyID,player,playerusernames[userID]+" joined the lobby")
+            updateplayerlogs(lobbyID,player,f"|stylebold:true###{playerusernames[userID]}|style        joined the lobby")
             break
     if(len(all_rooms[lobbyID].room_data["players"])==1):
         all_rooms[lobbyID].room_data["leader"] = userID
     await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
         "leader":all_rooms[lobbyID].room_data["leader"],
         "ongoing":all_rooms[lobbyID].room_data["ongoing"],
-        "event":["update-player-list","update-player-gameboard","request-user-logs"]
+        "event":["update-player-list","update-player-gameboard","request-user-logs"] #
     })
     try:
         while True:
@@ -165,7 +165,7 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
         all_rooms[lobbyID].room_data["players"].remove(userID)
         for player in all_rooms[lobbyID].room_data["players"]:
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"] = False
-            updateplayerlogs(lobbyID,player,userID+" has left the lobby")
+            updateplayerlogs(lobbyID,player,f"|stylebold:true###{playerusernames[userID]}|style        has left the lobby")
         try:
             all_rooms[lobbyID].room_data["leader"] = all_rooms[lobbyID].room_data["players"][0]
             await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
@@ -190,7 +190,7 @@ async def thebeginning(lobby_ID: str):
         all_rooms[lobby_ID].room_data["gameboard"][player_stats["tilelocation"]]["players"].append(player)
 
     all_rooms[lobby_ID].room_data["rounds"] = 1
-    updateplayerlogs(lobby_ID,"","Round 1")
+    updateplayerlogs(lobby_ID,"",f"|stylebold:true###Round {str(all_rooms[lobby_ID].room_data['rounds'])}")
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
@@ -199,13 +199,14 @@ async def thebeginning(lobby_ID: str):
     })
 #@app.get("/api-game/newround/{lobby_ID}")
 async def nextround(lobby_ID: str):
+    all_rooms[lobby_ID].room_data["rounds"]+=1
+    updateplayerlogs(lobby_ID,"",f"|stylebold:true###Round {str(all_rooms[lobby_ID].room_data['rounds'])}")
     allplayers = all_rooms[lobby_ID].room_data["players"]
     for player in allplayers:
         player_stats = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
         player_stats["ready"] = False
         player_stats["visibletiles"] = [player_stats["tilelocation"]]
     
-    all_rooms[lobby_ID].room_data["rounds"]+=1
     #check if players are on each other
     # if not test:
     #     for player in allplayers:
@@ -230,6 +231,7 @@ async def nextround(lobby_ID: str):
                 continue
             if status=="bleed":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['bleed']['damage']} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###[bleed]")
             if status=="UAV":
                 UAV_data = player_status[status]["data"]
                 for data in UAV_data:
@@ -272,8 +274,8 @@ async def nextround(lobby_ID: str):
                 opposition_data = all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data
                 var1 = opposition_data["misc_tokenkeys"]["enemy_location"]
                 removeItemFromVisibleToken(var1[0],var1[1],opposition_data["visibletokens"])
+                updateplayerlogs(lobby_ID,player,"you are no longer|stylecolor:#BA8E23,tooltip:{all_status['exposed']['tooltip'].replace(' ','~')}###exposed")
 
-    updateplayerlogs(lobby_ID,"","Round "+str(all_rooms[lobby_ID].room_data["rounds"]))
     #check for player hp and if its over
     player_lost = []
     for player in allplayers: #check players health
@@ -294,7 +296,7 @@ async def nextround(lobby_ID: str):
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-        "event":["reset-abilities-&-actions","update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard"]
+        "event":["reset-abilities-&-actions","update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard","new-round"]
     })
 
 def setRandomID():
@@ -352,7 +354,7 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
     #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
     ability_json = getserversideabilityinfo(json_["identifier"],"")
     addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],[False,ability_json["name"],"traps"])
-    updateplayerlogs(lobbyID,json_["user"],ability_json["name"]+" trap set")
+    updateplayerlogs(lobbyID,json_["user"],f"|stylecolor:#71706E###{ability_json['name']}|styletrap set")
     trap_jsondata["invisible"] = ability_json["invisible"]
     all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
@@ -363,7 +365,15 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
             continue
         #trigger it
         setforRemoval.append(data)
+        trap_json = getserversideabilityinfo(tiledata[data]["identifier"],"")
         removeItemFromVisibleToken(data,tile,all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["visibletokens"]) #remove from setter
+        updateplayerlogs(lobbyID,tiledata[data]["setter"],f"|stylebold:true###{player}|stylestepped into|stylecolor:#71706E###{trap_json['name']}")
+        trap_effects = trap_json["effect"]
+        trap_str = "["
+        for eff in trap_effects:
+            trap_str+=f"|stylecolor:#BA8E23,tooltip:{all_status[eff]['tooltip'].replace(' ','~')}###{eff}|style "
+        trap_str = trap_str.rstrip().replace(" ",",")+"]"
+        updateplayerlogs(lobbyID,player,f"You stepped into|stylecolor:#71706E###{trap_json['name']}|style and got {trap_str}")
         applyeffect(lobbyID,tiledata[data]["identifier"],player)
     #remove trap from gameboard
     for removaltrap in setforRemoval:
@@ -382,12 +392,15 @@ def moving_action(lobbyID,json):
 def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': '2_2', 'user': 'ltcDkmCla'}
     boarddata = all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["players"]
     enemy = get_opposition(all_rooms[lobbyID].room_data["players"],json_["user"])
+    ability_json = getserversideabilityinfo(json_["identifier"],"")
     if enemy in boarddata:
-        ability_json = getserversideabilityinfo(json_["identifier"],"")
-        print(ability_json)
+        updateplayerlogs(lobbyID,json_["user"],f"hit |stylebold:true###{playerusernames[enemy]}|stylefor|stylecolor:#FF0000###{ability_json['damage']} damage|styleusing|stylecolor:#71706E###{ability_json['name']}")
+        updateplayerlogs(lobbyID,enemy,f"hit by |stylecolor:#71706E###{ability_json['name']}|stylefor|stylecolor:#FF0000###{ability_json['damage']} damage")
         if ability_json["name"]=="strike":
             player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,ability_json["damage"])
             applyeffect(lobbyID,json_["identifier"],enemy)
+    else:
+        updateplayerlogs(lobbyID,json_["user"],f"used |stylecolor:#71706E###{ability_json['name']}|style and it missed")
 def spell_action(lobbyID,json_):
     ability_json = getserversideabilityinfo(json_["identifier"],"")
     if ability_json["name"]=="scout":
@@ -584,6 +597,16 @@ async def funcapi6(lobby_id:str,user_id:str,component:str):
     playerdata = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data
     #print(playerdata)
     return JSONResponse(content=playerdata[component],status_code=200)
+@app.get("/api-game/fetchgamesettings")
+async def funcapi7():
+    return JSONResponse(content={"board-size":gameboard_size},status_code=200)
+@app.get("/api-game/fetchgamesounds/{sound}")
+async def funcapi8(sound:str):
+    return FileResponse(
+        path="./gallery-mp3/"+sound+".mp3",
+        media_type="audio/mpeg",
+    )
+
 # @app.get("/api-game/fetch-player-logs/{lobby_id}/{user_id}")
 # async def funcapi7(lobby_id:str,user_id:str):
 #     log = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data["player_logs"]

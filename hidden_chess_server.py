@@ -5,8 +5,8 @@ from pydantic import BaseModel
 
 import json,random
 
-test = False
-trigger_own_trap = False
+test = True
+trigger_own_trap = True
 
 app = FastAPI()
 allowed_origins = ["http://localhost:3000"]
@@ -232,11 +232,11 @@ async def nextround(lobby_ID: str):
                 continue
             if status=="bleed":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['bleed']['damage']} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###[bleed]")
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['bleed']['damage']} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###bleed|style]")
                 continue
             if status=="burn":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["burn"]["damage"])
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['burn']['damage']} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['burn']['tooltip'].replace(' ','~')}###[burn]")
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['burn']['damage']} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['burn']['tooltip'].replace(' ','~')}###burn|style]")
                 continue
             if status=="poison":
                 player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
@@ -245,7 +245,7 @@ async def nextround(lobby_ID: str):
                     continue
                 damage = player_data["status"]["poison"]["data"][0]["potency"]
                 player_taking_damage(player_data,damage)
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#341539###{damage} damage|styletaken from|stylecolor:#BA8E23,tooltip:{all_status['poison']['tooltip'].replace(' ','~')}###[poison]")
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#E619B8###{damage} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['poison']['tooltip'].replace(' ','~')}###poison|style]")
                 continue
             if status=="UAV":
                 UAV_data = player_status[status]["data"]
@@ -293,13 +293,13 @@ async def nextround(lobby_ID: str):
         for remove in markforremoval_main:
             del player_status[remove]
             expiredStatusText+=f"|stylecolor:#BA8E23,tooltip:{all_status[remove]['tooltip'].replace(' ','~')}###{remove}|style "
-            expiredStatusText = expiredStatusText.rstrip().replace(" ",",")+"]"
             if(remove=="exposed"):
                 opposition = get_opposition(allplayers,player)
                 opposition_data = all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data
                 var1 = opposition_data["misc_tokenkeys"]["enemy_location"]
                 removeItemFromVisibleToken(var1[0],var1[1],opposition_data["visibletokens"])
         if not expiredStatusText=="[":
+            expiredStatusText = expiredStatusText.rstrip().replace(" ",",")+"]"
             updateplayerlogs(lobby_ID,player,f"{expiredStatusText} has expired")
 
     #check for player hp and if its over

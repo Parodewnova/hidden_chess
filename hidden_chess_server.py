@@ -44,7 +44,7 @@ class roomblueprint():
             for i2 in range(0,gameboard_size[1]):
                 self.room_data["gameboard"][f'{i}_{i2}'] = {
                     "players":[],
-                    "obstaces":[],
+                    "structures":{},
                     "traps":{}
                 }
 class playerblueprint():
@@ -53,7 +53,7 @@ class playerblueprint():
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":[["mov:001",0],["atk:001",0],["trp:001",0],["spell:001",0]],
+        "abilities":[["mov:001",0],["atk:001",0],["trp:001",0],["spell:001",0],["spell:002",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
@@ -153,7 +153,6 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     try:
         while True:
             data = await websocket.receive_text()
-            print(data)
             # Process received message
             
             # Send response back to client
@@ -227,7 +226,7 @@ async def nextround(lobby_ID: str):
                     removeItemFromVisibleToken(var1[0],var1[1],trap_setter_status["visibletokens"])
                 id = setRandomID()
                 trap_setter_status["misc_tokenkeys"]["enemy_location"] = [id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]]
-                addItemToVisibleToken(id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"],trap_setter_status["visibletokens"],True,playerusernames[player])
+                addItemToVisibleToken(id,all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"],trap_setter_status["visibletokens"],[True,playerusernames[player],"players"])
                 continue
             if status=="bleed":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
@@ -275,8 +274,23 @@ async def nextround(lobby_ID: str):
                 removeItemFromVisibleToken(var1[0],var1[1],opposition_data["visibletokens"])
 
     updateplayerlogs(lobby_ID,"","Round "+str(all_rooms[lobby_ID].room_data["rounds"]))
-
-                    
+    #check for player hp and if its over
+    player_lost = []
+    for player in allplayers: #check players health
+        player_hp = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["health"][0]
+        if(player_hp<=0):
+            player_lost.append(player)
+    if len(player_lost)>0: #end game
+        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+            "leader":all_rooms[lobby_ID].room_data["leader"],
+            "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+            "losers":player_lost,
+            "event":["game-end"]
+        })
+        for player in allplayers:
+           await registered_guests[player].close()
+        return
+   
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
@@ -290,10 +304,11 @@ def setRandomID():
     for i in range(0,max):
         toreturn+=var[random.randint(0,(len(var)-1))]
     return toreturn
-def addItemToVisibleToken(tokenID,tile,player_visible_tokens,enemy,itemname):
+def addItemToVisibleToken(tokenID,tile,player_visible_tokens,content_arr): #content_arr = [enemy,itemname,type]
     visibletokensformat = {
-        "enemy":enemy,
-        "itemname":itemname,
+        "enemy":content_arr[0],
+        "itemname":content_arr[1],
+        "type":content_arr[2]
     }
     current = {}
     if tile in player_visible_tokens:
@@ -336,7 +351,7 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
     trapID = setRandomID()
     #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
     ability_json = getserversideabilityinfo(json_["identifier"],"")
-    addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],False,ability_json["name"])
+    addItemToVisibleToken(trapID,json_["tile-touched"],all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],[False,ability_json["name"],"traps"])
     updateplayerlogs(lobbyID,json_["user"],ability_json["name"]+" trap set")
     trap_jsondata["invisible"] = ability_json["invisible"]
     all_rooms[lobbyID].room_data["gameboard"][json_["tile-touched"]]["traps"][trapID] = trap_jsondata
@@ -376,7 +391,11 @@ def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
 def spell_action(lobbyID,json_):
     ability_json = getserversideabilityinfo(json_["identifier"],"")
     if ability_json["name"]=="scout":
-        applyeffect(lobbyID,json_["identifier"],json_["user"],[json_["tile-touched"],"3_0"])
+        applySpecialeffect(lobbyID,json_["identifier"],json_["user"],[json_["tile-touched"]])
+        return
+    if ability_json["name"]=="lose":
+        player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data,100000000)
+        return
 
 # example = {'ipnypFuRME': {'identifier': 'mov:001', 'tile-touched': '2_1'}, 'XOZlJBhVb': {'identifier': 'mov:001', 'tile-touched': '3_4'}}
 def game_operations(lobbyID):
@@ -431,7 +450,7 @@ def applyeffect(lobbyID,abilityidentifier,player): #player here is the victim
                 "source":ability_data["name"]
             })
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
-def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim this is for status that affect tiles tilesAffected is arr
+def applySpecialeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim this is for status that affect tiles tilesAffected is arr
     split =  abilityidentifier.split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]

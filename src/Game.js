@@ -2,7 +2,7 @@ import React, { useEffect,useRef  } from 'react';
 import { useState } from "react";
 import {useParams} from 'react-router-dom'
 import {serverurl,getstorage, mainurl, setstorage} from "./index.js"
-import {userReady,settiledisplay,fetchplayerstats,gamestartfunction,newroundfunction, convertTileFormat} from "./Game_Utils.js"
+import {userReady,settiledisplay,fetchplayerstats,gamestartfunction,newroundfunction, convertTileFormat,messagetoserver} from "./Game_Utils.js"
 
 import "./css/Game.css"
 import "./css/cardpopup.css"
@@ -34,6 +34,7 @@ function Game(){
     const tilesize = 100
     
     const [playerlistdiv,setplayerlistdiv] = useState(null)
+    const [end_card,setEnd_card] = useState(null)
 
     async function checkvalidvalues(lobbyID,userID){ // will return game stats
         const json_data = {
@@ -79,7 +80,6 @@ function Game(){
     }
     async function fetchgameboarddisplay(game_details){
         const reply = await fetch(serverurl+"api-game/fetchgameboard/"+lobbyid+"/"+getstorage("userID")).then((response)=>response.json()).then((data)=>data)
-        console.log(reply)
         // update player health
         const playerhp = await fetchplayerstats(lobbyid,"health")
         const percentage = (playerhp[0]/playerhp[1])*100
@@ -96,9 +96,46 @@ function Game(){
                 const tileid = i_x+"_"+i_y
                 var blackout = true
                 var clickable = false
+                let icon_list = []
                 if (tileid in reply){
                     blackout = false
                     clickable = game_details["ongoing"]==false?true:false
+                    if(game_details["ongoing"]){ // set iconlist if tile is visible
+                        for(const key in reply[tileid]){
+                            if(key==="players"){
+                                for(const player of reply[tileid][key]){
+                                    if(player===getstorage("userID")){
+                                        icon_list.push("api-game/get_image/icon-assests|players.png")
+                                    }
+                                    else{
+                                        icon_list.push("api-game/get_image/icon-assests|players-enemy.png")
+                                    }
+                                }
+                            }
+                            else{
+                                Object.entries(reply[tileid][key]).map(([sub_key, value]) =>{
+                                    let to_push = ""
+                                    if(value["setter"]===getstorage("userID")){
+                                        to_push = "api-game/get_image/icon-assests|"+key+".png"
+                                    }
+                                    else{
+                                        to_push = "api-game/get_image/icon-assests|"+key+"-enemy.png"
+                                    }
+                                    if(!icon_list.includes(to_push)){
+                                        icon_list.push(to_push)
+                                    }
+                                })
+                            }
+                        }
+                    }
+                }
+                if(!(tileid in reply)&&tileid in visibletoken){ // set iconlist if tile is not visible but tile is in visible token
+                    Object.entries(visibletoken[tileid]).map(([sub_key, value]) =>{
+                        const to_push = "api-game/get_image/icon-assests|"+value["type"]+(value["enemy"]?"-enemy":"")+".png"
+                        if(!icon_list.includes(to_push)){
+                            icon_list.push(to_push)
+                        }
+                    })
                 }
                 const tilediv = 
                     <div blackout={blackout+""} id={tileid} style={{position:"relative",width:tilesize,height:tilesize,border:"1px solid black",background:blackout?"black":"none",color:"white"}} className='maintiledivcss' 
@@ -161,8 +198,14 @@ function Game(){
                             settiledisplay(e.currentTarget.parentElement.parentElement,tileid)
                             await userReady(lobbyid,json_data)
                         }}></div>
-                        <img src={serverurl+"api-game/get_image/visible.png"} style={{position:"absolute",left:"5%",top:"5%",display:game_details["ongoing"]&&tileid in reply?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
-                        <img src={serverurl+"api-game/get_image/interest.png"} style={{position:"absolute",left:"5%",top:"5%",display:!(tileid in reply)&&visibletoken&&visibletoken[tileid]!=null?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
+                        {/* <img src={serverurl+"api-game/get_image/visible.png"} style={{position:"absolute",left:"5%",top:"5%",display:game_details["ongoing"]&&tileid in reply?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img>
+                        <img src={serverurl+"api-game/get_image/interest.png"} style={{position:"absolute",left:"5%",top:"5%",display:!(tileid in reply)&&visibletoken&&visibletoken[tileid]!=null?"block":"none",maxWidth:"20%",maxHeight:"20%"}}></img> */}
+                        
+                        <div id="icon-display" style={{position:"absolute",left:"0px",top:"0px",maxWidth:"100%",display:'flex',flexWrap:'wrap',margin:"2px"}}>
+                                {Object.entries(icon_list).map(([sub_key, value]) =>{
+                                    return(<img src={serverurl+value} style={{width:"15px",height:"15px"}}></img>)
+                                })}
+                        </div>
                         <img src={serverurl+"api-game/get_image/Chess.png"} style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",maxWidth:"100%",maxHeight:"100%"}}></img>
                         <div style={{display:tileid in reply&&reply[tileid].players.includes(getstorage("userID"))?"block":"none",position:"absolute",bottom:"5%",left:"5%",width:"90%",height:"5px",background:"red"}}>
                             <div style={{position:"absolute",height:"100%",background:"green",width:`${percentage}%`}}></div>
@@ -308,6 +351,15 @@ function Game(){
         }
         for (var i =0;i<message["event"].length;i++){
             const event = message["event"][i]
+            if(event=="game-end"){
+                sethighlightedtile([])
+                setFocusedCard(null)
+                setEnd_card(
+                    <div style={{position:"absolute",left:"0px",top:"0px",width:"100%",height:"100vh",background:"rgba(0.5,0.5,0.5,0.5)",zIndex:"1001"}}>
+                        <h1 style={{position:"absolute",left:"50%",top:"20%",transform:"translate(-50%,-0%)",color:"white",fontSize:"50px"}}>{message["losers"].includes(getstorage("userID"))?"YOU LOSE":"YOU WIN"}</h1>
+                    </div>
+                )
+            }
             if(event=="request-user-logs"){
                 const playerlogs = (await fetchplayerstats(lobbyid,"player_logs"))//.replace("[","").replace("]","").replaceAll("'","").replaceAll("\"","").split(",")
                 setGameLogs(playerlogs)
@@ -384,7 +436,6 @@ function Game(){
         }
     }
 
-
     useEffect(() => { // set up websocket
         if(!loaded){
             return
@@ -407,6 +458,7 @@ function Game(){
         return () => {
         if (socketRef.current) {
             socketRef.current.close();
+            console.log('WebSocket disconnected');
         }
         };
     }, [loaded]);
@@ -464,6 +516,7 @@ function Game(){
             {focusedCard}
             {spectatingtile}
             {minihighlight}
+            {end_card}
         </div>
     )
 }

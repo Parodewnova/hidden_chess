@@ -9,7 +9,7 @@
     },
     "serverside":{
         "damage":0,
-        "cooldown":0,
+        "cooldown":2,
         "name":"scout",
         "effect-duration":2,
         "effect":["UAV"]

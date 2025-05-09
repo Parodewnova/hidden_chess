@@ -5,6 +5,7 @@
         "damage":0,
         "cooldown":1,
         "tileformat":"x-x-L",
+        "effectType":"AOE",
         "description":"applies burn for 3 rounds to 2 tiles in front"
     },
     "serverside":{
@@ -13,7 +14,8 @@
         "name":"flamethrower",
         "effect-duration":3,
         "effect":["burn"],
-        "tileformat":"x-x-L",
-        "select-type":"fixed"
+        "tileformat":"x-x-A",
+        "cursor":"player",
+        "friendly-fire":false
     }
 }

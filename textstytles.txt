@@ -6,3 +6,7 @@ atk/trp card names = #71706E
 PHYSICAL damage = #FF0000
 POISON damage = #E619B8
 effects = #BA8E23
+
+
+
+[|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###bleed|style] tooltips

@@ -5,6 +5,7 @@
         "damage":2,
         "cooldown":2,
         "tileformat":"xxxxx-xxxxx-xxLxx-xxxxx-xxxxx",
+        "effectType":"single",
         "description":"Sets a mine that damages the enemy and applies burn for 2 rounds"
     },
     "serverside":{
@@ -14,7 +15,8 @@
         "effect-duration":2,
         "effect":["burn"],
         "invisible":false,
-        "tileformat":"xxxxx-xxxxx-xxLxx-xxxxx-xxxxx",
-        "select-type":"single"
+        "tileformat":"I",
+        "cursor":"global",
+        "friendly-fire":false
     }
 }

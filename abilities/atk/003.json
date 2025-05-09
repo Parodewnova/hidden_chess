@@ -1,0 +1,21 @@
+{
+    "clientside":{
+        "name":"missle",
+        "identifier":"atk:003",
+        "damage":2,
+        "cooldown":2,
+        "tileformat":"xxxxx-ooooo-ooLoo",
+        "effectType":"single",
+        "description":"damage 1 tile"
+    },
+    "serverside":{
+        "damage":2,
+        "cooldown":2,
+        "name":"missle",
+        "effect-duration":0,
+        "effect":[],
+        "tileformat":"I",
+        "cursor":"global",
+        "friendly-fire":false
+    }
+}

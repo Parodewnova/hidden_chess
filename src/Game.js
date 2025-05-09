@@ -8,7 +8,6 @@ import useSound from 'use-sound';
 import "./css/Game.css"
 import "./css/cardpopup.css"
 
-
 // getstorage("userID") ==> user id
 
 function Game(){
@@ -544,9 +543,8 @@ function Game(){
                                             <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
                                                 {Object.entries(value).map(([key, value]) =>{
                                                     if(key!="skip"){
-                                                        <span>{key}: {value[key]}</span>
+                                                        return <span>{key}: {value}</span>
                                                     }
-                                            
                                                 })}
                                                 {/* <span>duration: {value["duration"]}</span>
                                                 <span>source: {value["source"]}</span> */}

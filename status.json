@@ -11,11 +11,11 @@
     "burn":{
         "damage":1,
         "description":"scalding",
-        "tooltip":"-1hp every round"
+        "tooltip":"-1hp per source every round"
     },
     "poison":{
         "description":"you are poisoned",
-        "tooltip":"-hp for each stack, stack reduces by 1 every round"
+        "tooltip":"-hp for each stack (-1 stack each round)"
     },
     "UAV":{
         "description":"revealing tiles",

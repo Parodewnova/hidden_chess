@@ -6,7 +6,7 @@
         "cooldown":1,
         "tileformat":"xxxxx-xxxxx-xxLxx-xxxxx-xxxxx",
         "effectType":"single",
-        "description":"Sets an invisible mine that reveals enemy current location for 2 rounds when stepped on"
+        "description":"Sets an ->format:custom:color:#808080,tooltip:can't be found through vision###invisible-> mine, applies->format:status###exposed->for 2 rounds"
     },
     "serverside":{
         "damage":0,

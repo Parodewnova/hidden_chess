@@ -6,7 +6,7 @@
         "cooldown":2,
         "tileformat":"xxxxx-ooooo-ooLoo",
         "effectType":"single",
-        "description":"damage 1 tile"
+        "description":"deal->format:damagetypephysical###2 damage->to a single tile"
     },
     "serverside":{
         "damage":2,

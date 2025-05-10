@@ -6,7 +6,7 @@
         "cooldown":1,
         "tileformat":"x-x-L",
         "effectType":"AOE",
-        "description":"applies burn for 3 rounds to 2 tiles in front"
+        "description":"apply->format:status###burn->for 3 rounds to 2 tiles in front"
     },
     "serverside":{
         "damage":0,

@@ -359,101 +359,6 @@ function Game(){
         }
         sethighlightedtile(convertTileFormat(reply,tileformat,leader))
     }
-    async function handleServerMessages(message){ //json format
-        const gameinfo = {
-            "leader":message["leader"],
-            "ongoing":message["ongoing"]
-        }
-        for (var i =0;i<message["event"].length;i++){
-            const event = message["event"][i]
-            if(event=="game-end"){
-                sethighlightedtile([])
-                setFocusedCard(null)
-                setEnd_card(
-                    <div style={{position:"absolute",left:"0px",top:"0px",width:"100%",height:"100vh",background:"rgba(0.5,0.5,0.5,0.5)",zIndex:"1001"}}>
-                        <h1 style={{position:"absolute",left:"50%",top:"20%",transform:"translate(-50%,-0%)",color:"white",fontSize:"50px"}}>{message["losers"].includes(getstorage("userID"))?"YOU LOSE":"YOU WIN"}</h1>
-                    </div>
-                )
-            }
-            if(event=="request-user-logs"){
-                const playerlogs = (await fetchplayerstats(lobbyid,"player_logs"))//.replace("[","").replace("]","").replaceAll("'","").replaceAll("\"","").split(",")
-                //setGameLogs(playerlogs)
-            }
-            if(event=="toggle-start-button"){
-                gameinfo["readytobegin"] = message["readytobegin"]
-                await fetchplayerlist(gameinfo)
-                continue
-            }
-            if(event=="update-player-list"){
-                await fetchplayerlist(gameinfo)
-                continue
-            }
-            if(event=="update-player-gameboard"){
-                await fetchgameboarddisplay(gameinfo)
-                continue
-            }
-            if(event=="send-ability-gui"){
-                gameinfo["readytobegin"] = message["readytobegin"]
-                await displayfunctiongui(gameinfo)
-                continue
-            }
-            if(event=="update-user-tokens"){
-                setminihighlight(null)
-                setspectatingtile(null)
-                visibletoken = await fetchplayerstats(lobbyid,"visibletokens")
-                continue
-            }
-            if(event=="update-user-statuses"){ // request update statuses
-                const playerstatus = (await fetchplayerstats(lobbyid,"status"))
-                const statusDivArr = []
-                for(const status in playerstatus){
-                    const div_status = 
-                    <div className='statusiconcss' onMouseEnter={(e)=>{
-                        e.currentTarget.querySelector("#descriptionlabel").style.display = "flex"
-                    }} onMouseLeave={(e)=>{
-                        e.currentTarget.querySelector("#descriptionlabel").style.display = "none"
-                    }}>
-                        <img src={serverurl+"api-game/get_image/status-assests|"+status+".png"} style={{width:"100%",height:"100%",background:"white"}}></img>
-                        <div id='descriptionlabel' style={{position:"absolute",display:"none",flexDirection:"column",fontSize:"12px",background:"white",width:"fitContent",padding:"3px"}}>
-                            <span style={{color:'red',fontWeight:"bold",marginBottom:"3px"}}>{status}</span>
-                            {
-                                playerstatus[status]["data"].map((value, index)=>{
-                                    return (
-                                        <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
-                                            {Object.entries(value).map(([key, value]) =>{
-                                                    return (
-                                                        <span key={key}>{key}: {value}</span>
-                                                    )
-                                        
-                                            })}
-                                            {/* <span>duration: {value["duration"]}</span>
-                                            <span>source: {value["source"]}</span> */}
-                                        </div>
-                                    )
-                                })
-                            }
-                            <span style={{marginTop:"3px",marginBottom:"3px"}}>[{playerstatus[status]["description"]}]</span>
-                        </div>
-                    </div>
-                    statusDivArr.push(div_status)
-                }
-                setplayerstatus(statusDivArr)
-                continue
-            }
-            if(event=="reset-abilities-&-actions"){
-                // reset highlighted tiles
-                sethighlightedtile([])
-                clickedAbility = {}
-                setFocusedCard(null)
-                useractiondone = false
-                continue
-            }
-            if(event=="new-round"){
-                // audio.currentTime = 0
-                // audio.play()
-            }
-        }
-    }
     async function loadsoundsystem(){
         const sound = new Audio(serverurl+"api-game/fetchgamesounds/newround")
         await new Promise((resolve, reject) => {
@@ -611,6 +516,62 @@ function Game(){
         // sethighlightedtile(convertTileFormat("2_0","xxxxx-ooooo-ooLoo",true))
         loadsoundsystem()
     }, []);
+
+
+    function formattextfunction(message){
+        const text_arr = []
+        const logsplit = message.split("|style")
+        for(const value of logsplit){
+            if(value==""){
+                continue
+            }
+            const value_split = value.split("###")
+            if(value_split.length==1){
+                text_arr.push(<span style={{marginRight:"3px",fontSize:"13px"}}>{value_split[0].trim()}</span>)
+                continue
+            }
+            let bold = false
+            let size = 13
+            let colorhex = "#000000"
+            let tooltip = ""
+            const changed = value_split[0].replace(" ","").split(",")
+            for(const content of changed){
+                const split2 = content.split(":")
+                if(split2[0]==="bold"){
+                    bold = Boolean(split2[1])
+                    continue
+                }
+                if(split2[0]==="size"){
+                    size = parseInt(split2[1])
+                    continue
+                }
+                if(split2[0]==="color"){
+                    colorhex = split2[1]
+                    continue
+                }
+                if(split2[0]==="tooltip"){
+                    tooltip = split2[1]
+                    continue
+                }
+            }
+            text_arr.push(<span style={{marginRight:"3px",fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip===""?"default":"pointer"}} 
+            onMouseEnter={(e)=>{
+                if(tooltip===""){
+                    return
+                }
+                setloghighlighter(
+                    <div style={{position:"absolute",top:e.clientY+20,left:e.clientX-30,background:"white",fontSize:"12px",padding:"2px"}}>{tooltip.replaceAll("~"," ")}</div>
+                )
+            }}
+            onMouseLeave={(e)=>setloghighlighter(null)}
+            >{value_split[1]}</span>)
+        }
+        return(<div style={{margin:"3px",maxWidth:"100%",display:"flex",flexWrap:"wrap",alignContent:"center"}}>{text_arr}</div>)
+    }
+
+
+
+
     return(
         <div style={{width:"100%",height:"100vh"}}>
             <div style={{display:"none"}} id='player-ready-state'>false</div>
@@ -622,6 +583,7 @@ function Game(){
                         <h1 style={{width:"100%",textAlign:"center",fontSize:"15px"}}>--LOGS--</h1>
                         <div id='logmessagelist' style={{overflowY:"auto",display:"flex",flexDirection:"column",maxHeight:"200px"}}>
                             {gamelogs.map((log, index) => {
+                                return formattextfunction(log)
                                 const text_arr = []
                                 const logsplit = log.split("|style")
                                 for(const value of logsplit){

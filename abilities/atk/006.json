@@ -1,0 +1,21 @@
+{
+    "clientside":{
+        "name":"backstab",
+        "identifier":"atk:006",
+        "damage":1,
+        "cooldown":1,
+        "tileformat":"L-x",
+        "effectType":"AOE",
+        "description":"Stabs the back tile, dealing ->format:damagetypephysical###1 damage->, applies->format:status###bleed->for 2 rounds"
+    },
+    "serverside":{
+        "damage":1,
+        "cooldown":1,
+        "name":"backstab",
+        "effect-duration":2,
+        "effect":["bleed"],
+        "tileformat":"A-x",
+        "cursor":"player",
+        "friendly-fire":false
+    }
+}

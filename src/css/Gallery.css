@@ -1,0 +1,66 @@
+body{
+    width: 100%;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    /* display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: rgb(9, 31, 56); */
+}
+
+
+.header_divclass{
+    font-size: 30px;
+    font-weight: bold;
+    border-radius: 15px;
+    /* border: 1px solid black;
+    background-color: #f0ffff; */
+    width: 250px;
+    height: 100%;
+    cursor: default;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.header_gonext{
+    height: 100%;
+    font-size: 40px;
+    border-radius: 15px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-left: 10px;
+    margin-right: 10px;
+    cursor: pointer;
+}
+.header_gonext:hover{
+    background: rgba(0.5,0.5,0.5,0.4);
+}
+
+
+
+.itemslotdiv{
+    height: 200px;
+    width: 100%;
+    background: white;
+    cursor: pointer;
+    user-select: none;
+
+    border-top-left-radius: 15px;
+    border-bottom-left-radius: 15px;
+
+    display: flex;
+    align-items: center;
+}
+
+.hovercardcss{
+    transform: translateY(80%);
+}
+.hovercardcss:hover{
+    transform: translateY(0);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}

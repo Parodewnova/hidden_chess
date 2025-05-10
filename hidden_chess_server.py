@@ -2,10 +2,11 @@ from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse,Stre
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, File, UploadFile, Request, Response,status, WebSocket
 from pydantic import BaseModel
+import os
 
 import json,random
 
-test = False
+test = True
 trigger_own_trap = True
 
 app = FastAPI()
@@ -54,7 +55,7 @@ class playerblueprint():
         "tilelocation":"",
         "visibletiles":[],
         "currentusage":{},
-        "abilities":[["mov:001",0],["trp:001",0],["utl:001",0],["atk:001",0],["atk:002",0],["utl:004",0]],
+        "abilities":[["mov:001",0],["trp:001",0],["trp:002",0],["trp:003",0],["atk:004",0],["utl:004",0]],
         "status":{
             # "exposed":{
             #     "data":[{"duration":2,"source":"sensor-mine"}],
@@ -268,8 +269,9 @@ async def nextround(lobby_ID: str):
                 updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['bleed']['damage']} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###bleed|style]")
                 continue
             if status=="burn":
-                player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["burn"]["damage"])
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['burn']['damage']} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['burn']['tooltip'].replace(' ','~')}###burn|style]")
+                damage_taken = (all_status["burn"]["damage"])*len(player_status[status]["data"])
+                player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,damage_taken)
+                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{damage_taken} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['burn']['tooltip'].replace(' ','~')}###burn|style]")
                 continue
             if status=="poison":
                 player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
@@ -397,7 +399,7 @@ def player_taking_damage(player_data_json,damage):#player is victim
 
 
 
-all_types = ["trp","mov",'atk','utl']
+all_types = ['utl',"trp","mov",'atk']
 def get_opposition(players,currentplayer): # =============================================================================
     if test:
         return currentplayer
@@ -421,21 +423,29 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
     for data in tiledata:
-        if not trigger_own_trap:
+        trap_json = getserversideabilityinfo(tiledata[data]["identifier"],"")
+        if not trigger_own_trap or not trap_json["friendly-fire"]:
             if tiledata[data]["setter"] == player:
                 continue
         #trigger it
         setforRemoval.append(data)
-        trap_json = getserversideabilityinfo(tiledata[data]["identifier"],"")
         removeItemFromVisibleToken(data,tile,all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["visibletokens"]) #remove from setter
         updateplayerlogs(lobbyID,tiledata[data]["setter"],f"|stylebold:true###{player}|stylestepped into|stylecolor:#71706E###{trap_json['name']}")
-        trap_effects = trap_json["effect"]
-        trap_str = "["
-        for eff in trap_effects:
-            trap_str+=f"|stylecolor:#BA8E23,tooltip:{all_status[eff]['tooltip'].replace(' ','~')}###{eff}|style "
-        trap_str = trap_str.rstrip().replace(" ",",")+"]"
-        updateplayerlogs(lobbyID,player,f"You stepped into|stylecolor:#71706E###{trap_json['name']}|style and got {trap_str}")
-        applyeffect(lobbyID,tiledata[data]["identifier"],player,[])
+        
+        inflicted = True if len(trap_json["effect"])!=0 else False
+        damage = True if trap_json["damage"]!=0 else False
+        outputstr = ""
+        trap_str = ""
+        if damage:
+            player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][player].player_data,trap_json["damage"])
+            outputstr+=f"it dealt|stylecolor:#FF0000###{trap_json["damage"]} damage|style "
+        if inflicted:
+            applyeffect(lobbyID,tiledata[data]["identifier"],player,[])
+            trap_str = "["
+            for eff in trap_json["effect"]:
+                trap_str+=f"|stylecolor:#BA8E23,tooltip:{all_status[eff]['tooltip'].replace(' ','~')}###{eff}|style "
+            trap_str = trap_str.rstrip().replace(" ",",")+"]"
+        updateplayerlogs(lobbyID,player,f"You stepped into|stylecolor:#71706E###{trap_json['name']}|style{outputstr} and it inflicted {trap_str}")
     #remove trap from gameboard
     for removaltrap in setforRemoval:
         del tiledata[removaltrap]
@@ -738,9 +748,61 @@ async def funcapi8(sound:str):
         media_type="audio/mpeg",
     )
 
-# @app.get("/api-game/fetch-player-logs/{lobby_id}/{user_id}")
-# async def funcapi7(lobby_id:str,user_id:str):
-#     log = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data["player_logs"]
-#     return PlainTextResponse(str(log),status_code=200)
+
+
+
+
+def formatcarddescription(description):
+    new_description = ""
+    for part in description.split("->"):
+        if part == "":
+            continue
+        if "###" not in part:
+            new_description+=(part+" ")
+            continue
+
+        split = part.split("###")
+        wantedformat = split[0].split(":")[1]
+        if(wantedformat=="status"):
+            new_description+=f"|style[|stylecolor:#BA8E23,tooltip:{all_status[split[1]]['tooltip'].replace(' ','~')}###{split[1]}|style]|style "
+            continue
+        if("damagetype" in wantedformat):
+            damage_type = wantedformat.replace("damagetype","")
+            hexcolor = "#000000"
+            if damage_type == "physical":
+                hexcolor = "#FF0000"
+            new_description+=f"|stylecolor:{hexcolor}###{split[1]}|style "
+            continue
+        if(wantedformat=="custom"):
+            add_content = ""
+            for components in split[0].replace("format:custom:","").split(","):
+                comp_split = components.split(":")
+                if(comp_split[0]=="color"):
+                    add_content+=f"color:{comp_split[1]},"
+                    continue
+                if(comp_split[0]=="tooltip"):
+                    add_content+=f"tooltip:{comp_split[1].replace(' ','~')},"
+                    continue
+            new_description+=f"|style{add_content[:-1]}###{split[1]}|style "
+            continue
+    return new_description.strip()
+
+
+
+
+@app.get("/api-gallery/gallerysite/{context}")
+async def funcapi1(context:str):
+    content_requested = context.split("-")[1]
+    if content_requested == "ability_headers":
+        return JSONResponse(content=os.listdir("./abilities"),status_code=200)
+    if content_requested.split("=")[0] == "headeritems":
+        allcontent = os.listdir(f"./abilities/{content_requested.split('=')[1]}")
+        item_dict = {}
+        for name in allcontent:
+            with open(f"./abilities/{content_requested.split('=')[1]}/{name}","r") as reader:
+                content_json = json.load(reader)["clientside"]
+                content_json["description"] = formatcarddescription(content_json["description"])
+                item_dict[name] = content_json
+        return JSONResponse(content=item_dict,status_code=200)
     
  

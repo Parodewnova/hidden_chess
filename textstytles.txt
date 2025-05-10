@@ -10,3 +10,7 @@ effects = #BA8E23
 
 
 [|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###bleed|style] tooltips
+
+
+"tileformat":"x-x-A", A == exclude tile
+"tileformat":"x-x-I", I == include tile 

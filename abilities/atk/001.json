@@ -6,7 +6,7 @@
         "cooldown":0,
         "tileformat":"x-L",
         "effectType":"single",
-        "description":"Stabs the front tile, dealing ->format:damagetypephysical###2 damage->, applies->format:status###bleed->for 1 round"
+        "description":"Stabs the front tile, dealing->format:damagetypephysical###2 damage->, applies->format:status###bleed->for 1 round"
     },
     "serverside":{
         "damage":2,

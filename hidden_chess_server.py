@@ -7,7 +7,7 @@ import os
 import json,random
 
 test = True
-trigger_own_trap = True
+trigger_own_trap = False
 
 app = FastAPI()
 allowed_origins = ["http://localhost:3000"]
@@ -171,12 +171,12 @@ def updateplayerlogs(lobby_ID,player,message):
 async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     await websocket.accept()
     registered_guests[userID] = websocket
-    updateplayerlogs(lobbyID,userID,f"|stylebold:true###{playerusernames[userID]}|style        joined the lobby")
+    updateplayerlogs(lobbyID,userID,f"|stylebold:true###{playerusernames[userID]}|stylejoined the lobby")
 
 
     for player in all_rooms[lobbyID].room_data["players"]:
         if player!=userID:
-            updateplayerlogs(lobbyID,player,f"|stylebold:true###{playerusernames[userID]}|style        joined the lobby")
+            updateplayerlogs(lobbyID,player,f"|stylebold:true###{playerusernames[userID]}|stylejoined the lobby")
             break
     if(len(all_rooms[lobbyID].room_data["players"])==1):
         all_rooms[lobbyID].room_data["leader"] = userID
@@ -188,6 +188,7 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     try:
         while True:
             data = await websocket.receive_text()
+            handlewebsocket_messages(lobbyID,userID,data)
             # Process received message
             
             # Send response back to client
@@ -211,6 +212,16 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
         except:
             if len(all_rooms[lobbyID].room_data["players"])==0:
                 all_rooms[lobbyID] = roomblueprint()
+def handlewebsocket_messages(lobby_ID,userID,message):
+    content_split = message.split("=>")
+    if content_split[0] == "[loadabilities]":
+        all_abilities = content_split[1].split(" ")
+        abilityarr = []
+        for content in all_abilities:
+            abilityarr.append([content,0])
+        all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["abilities"] = abilityarr
+        return
+
 
 
 
@@ -241,14 +252,6 @@ async def nextround(lobby_ID: str):
         player_stats = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
         player_stats["ready"] = False
         player_stats["visibletiles"] = [player_stats["tilelocation"]]
-    
-    #check if players are on each other
-    # if not test:
-    #     for player in allplayers:
-    #         opposition = get_opposition(allplayers,player)
-    #         player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
-    #         if player_data["tilelocation"]==all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data["tilelocation"]:
-    #             applyeffect(lobby_ID,"msc:001",opposition)
 
     #activate each status all player have
     for player in allplayers:
@@ -266,12 +269,12 @@ async def nextround(lobby_ID: str):
                 continue
             if status=="bleed":
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,all_status["bleed"]["damage"])
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{all_status['bleed']['damage']} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###bleed|style]")
+                updateplayerlogs(lobby_ID,player,formatcarddescription(f"format:damagetypephysical###{all_status['bleed']['damage']} damage->taken from->format:status###bleed"))
                 continue
             if status=="burn":
                 damage_taken = (all_status["burn"]["damage"])*len(player_status[status]["data"])
                 player_taking_damage(all_rooms[lobby_ID].room_data["playerstats"][player].player_data,damage_taken)
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#FF0000###{damage_taken} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['burn']['tooltip'].replace(' ','~')}###burn|style]")
+                updateplayerlogs(lobby_ID,player,formatcarddescription(f"format:damagetypephysical###{damage_taken} damage->taken from->format:status###burn"))
                 continue
             if status=="poison":
                 player_data = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
@@ -280,7 +283,7 @@ async def nextround(lobby_ID: str):
                     continue
                 damage = player_data["status"]["poison"]["data"][0]["potency"]
                 player_taking_damage(player_data,damage)
-                updateplayerlogs(lobby_ID,player,f"|stylecolor:#E619B8###{damage} damage|styletaken from [|stylecolor:#BA8E23,tooltip:{all_status['poison']['tooltip'].replace(' ','~')}###poison|style]")
+                updateplayerlogs(lobby_ID,player,formatcarddescription(f"format:damagetypephysical###{damage} damage->taken from->format:status###poison"))
                 continue
             if status=="UAV":
                 UAV_data = player_status[status]["data"]
@@ -324,18 +327,19 @@ async def nextround(lobby_ID: str):
                 del status_arr[indextoremove]
             if(len(status_arr)==0):
                 markforremoval_main.append(status)
-        expiredStatusText = "["
+        expiredStatusText = "->format:status###"
         for remove in markforremoval_main:
             del player_status[remove]
-            expiredStatusText+=f"|stylecolor:#BA8E23,tooltip:{all_status[remove]['tooltip'].replace(' ','~')}###{remove}|style "
+            #expiredStatusText+=f"|stylecolor:#BA8E23,tooltip:{all_status[remove]['tooltip'].replace(' ','~')}###{remove}|style "
+            expiredStatusText+=remove+"&"
             if(remove=="exposed"):
                 opposition = get_opposition(allplayers,player)
                 opposition_data = all_rooms[lobby_ID].room_data["playerstats"][opposition].player_data
                 var1 = opposition_data["misc_tokenkeys"]["enemy_location"]
                 removeItemFromVisibleToken(var1[0],var1[1],opposition_data["visibletokens"])
-        if not expiredStatusText=="[":
-            expiredStatusText = expiredStatusText.rstrip().replace(" ",",")+"]"
-            updateplayerlogs(lobby_ID,player,f"{expiredStatusText} has expired")
+        if not expiredStatusText=="->format:status###":
+            expiredStatusText = expiredStatusText[:-1]+"->"
+            updateplayerlogs(lobby_ID,player,f"{formatcarddescription(expiredStatusText)} has expired")
 
     #check for player hp and if its over
     player_lost = []
@@ -424,13 +428,14 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     setforRemoval = []
     for data in tiledata:
         trap_json = getserversideabilityinfo(tiledata[data]["identifier"],"")
-        if not trigger_own_trap or not trap_json["friendly-fire"]:
+        if not trigger_own_trap and not trap_json["friendly-fire"]:
             if tiledata[data]["setter"] == player:
                 continue
         #trigger it
         setforRemoval.append(data)
         removeItemFromVisibleToken(data,tile,all_rooms[lobbyID].room_data["playerstats"][tiledata[data]["setter"]].player_data["visibletokens"]) #remove from setter
-        updateplayerlogs(lobbyID,tiledata[data]["setter"],f"|stylebold:true###{player}|stylestepped into|stylecolor:#71706E###{trap_json['name']}")
+        if tiledata[data]["setter"] != player:
+            updateplayerlogs(lobbyID,tiledata[data]["setter"],f"|stylebold:true###{player}|stylestepped into|stylecolor:#71706E###{trap_json['name']}")
         
         inflicted = True if len(trap_json["effect"])!=0 else False
         damage = True if trap_json["damage"]!=0 else False
@@ -438,14 +443,14 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
         trap_str = ""
         if damage:
             player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][player].player_data,trap_json["damage"])
-            outputstr+=f"it dealt|stylecolor:#FF0000###{trap_json["damage"]} damage|style "
+            outputstr+=f"it dealt->format:damagetypephysical###{trap_json["damage"]} damage->"
         if inflicted:
             applyeffect(lobbyID,tiledata[data]["identifier"],player,[])
-            trap_str = "["
+            trap_str = "->format:status###"
             for eff in trap_json["effect"]:
-                trap_str+=f"|stylecolor:#BA8E23,tooltip:{all_status[eff]['tooltip'].replace(' ','~')}###{eff}|style "
-            trap_str = trap_str.rstrip().replace(" ",",")+"]"
-        updateplayerlogs(lobbyID,player,f"You stepped into|stylecolor:#71706E###{trap_json['name']}|style{outputstr} and it inflicted {trap_str}")
+                trap_str+=eff+"&"
+            trap_str = trap_str[:-1]+"->"
+        updateplayerlogs(lobbyID,player,f"You stepped into|stylecolor:#71706E###{trap_json['name']}|style{formatcarddescription(outputstr)} and it inflicted {formatcarddescription(trap_str)}")
     #remove trap from gameboard
     for removaltrap in setforRemoval:
         del tiledata[removaltrap]
@@ -718,7 +723,10 @@ async def funcapi4(lobby_id:str,userID:str):
                 "currentcooldown":code[1]
             }
             for key in json_loaded:
-                sub_json[key] = json_loaded[key]
+                v = json_loaded[key]
+                if key == "description":
+                    v = formatcarddescription(json_loaded[key])
+                sub_json[key] = v
             abilityjson[json_loaded["name"]] = sub_json
             # abilityjson[json_loaded["name"]] = {
             #     "identifier":json_loaded["identifier"],
@@ -764,7 +772,10 @@ def formatcarddescription(description):
         split = part.split("###")
         wantedformat = split[0].split(":")[1]
         if(wantedformat=="status"):
-            new_description+=f"|style[|stylecolor:#BA8E23,tooltip:{all_status[split[1]]['tooltip'].replace(' ','~')}###{split[1]}|style]|style "
+            new_description += "|style["
+            for status in split[1].split("&"):
+                new_description+=f"|stylecolor:#BA8E23,tooltip:{all_status[status]['tooltip'].replace(' ','~')}###{status}|style,"
+            new_description = new_description[:-1]+"]|style"
             continue
         if("damagetype" in wantedformat):
             damage_type = wantedformat.replace("damagetype","")

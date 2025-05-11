@@ -18,7 +18,7 @@ function Gallery(){
     //     }));
     // };
 
-    const headerspreset = ["Attack:atk","Trap:trp","Utilities:utl"]
+    const headerspreset = ["Attack:atk","Trap:trp","Utilities:utl","Movement:mov"]
     const [headerdiv,setheader] = useState(null)
     const [clickedheaders,setclickedheaders] = useState("atk")
 
@@ -32,6 +32,7 @@ function Gallery(){
         const text_arr = []
         const logsplit = message.split("|style")
         let bracket_content = false
+        let saved_status = []
         for(const value of logsplit){
             if(value==""){
                 continue
@@ -40,12 +41,21 @@ function Gallery(){
             if(value_split.length==1){
                 if(value_split[0]!=="["){
                     if(value_split[0]==="]"){
+                        saved_status.push(<span>{bracket_content?" ]":""}</span>)
+                        text_arr.push(<div style={{marginRight:"3px"}}>{saved_status}</div>)
+                        saved_status = []
+                        bracket_content = false
+                        continue
+                    }
+                    if(bracket_content){
+                        saved_status.push(<span style={{marginRight:"3px",fontSize:defaultfontsize+"px",textAlign:"center"}}>{value_split[0].trim()}</span>)
                         continue
                     }
                     text_arr.push(<span style={{marginRight:"3px",fontSize:defaultfontsize+"px",textAlign:"center"}}>{value_split[0].trim()}</span>)
                     continue
                 }
                 bracket_content = true
+                saved_status.push(<span>{bracket_content?"[ ":""}</span>)
                 continue
             }
             let bold = false
@@ -72,10 +82,26 @@ function Gallery(){
                     continue
                 }
             }
-            text_arr.push(
-                <div style={{marginRight:"3px"}}>
-                    <span>{bracket_content?"[ ":""}</span>
-                    <span style={{fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip!==""?"pointer":"default",textAlign:"center"}} 
+            if(!bracket_content){
+                text_arr.push(
+                    <div style={{marginRight:"3px"}}>
+                        <span style={{fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip!==""?"pointer":"default",textAlign:"center"}} 
+                            onMouseEnter={(e)=>{
+                                if(tooltip===""){
+                                    return
+                                }
+                                setloghighlighter(
+                                    <div style={{position:"absolute",top:e.clientY+20,left:e.clientX-30,background:"white",fontSize:"12px",padding:"2px",borderRadius:"5px",border:"1px solid black",zIndex:"100"}}>{tooltip.replaceAll("~"," ")}</div>
+                                )
+                            }}
+                            onMouseLeave={()=>setloghighlighter(null)}
+                            >{value_split[1]}
+                        </span>
+                    </div>
+                )
+            }
+            else{
+                saved_status.push(<span style={{fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip!==""?"pointer":"default",textAlign:"center"}} 
                     onMouseEnter={(e)=>{
                         if(tooltip===""){
                             return
@@ -84,12 +110,9 @@ function Gallery(){
                             <div style={{position:"absolute",top:e.clientY+20,left:e.clientX-30,background:"white",fontSize:"12px",padding:"2px",borderRadius:"5px",border:"1px solid black",zIndex:"100"}}>{tooltip.replaceAll("~"," ")}</div>
                         )
                     }}
-                    onMouseLeave={(e)=>setloghighlighter(null)}
-                    >{value_split[1]}</span>
-                    <span>{bracket_content?" ]":""}</span>
-                </div>
-            )
-            bracket_content = false
+                    onMouseLeave={()=>setloghighlighter(null)}
+                    >{value_split[1]}</span>)
+            }
         }
         return(<div style={{margin:"3px",maxWidth:"100%",display:"flex",flexWrap:"wrap",alignContent:"center",justifyContent:"center"}}>{text_arr}</div>)
     }
@@ -135,12 +158,13 @@ function Gallery(){
         const allcardlist = []
         Object.entries(itemjson).map(([key, value],index) =>{
             allcardlist.push(
-                <div style={{position:"relative",width:"200px",height:"320px",borderRadius:"15px",border:"2px solid black",display:"flex",flexDirection:"column",padding:"3px",background:"white",cursor:"default"}} onClick={(e)=>{selitem(value["name"],value)}}>
+                <div  className="highlightcardcss" style={{position:"relative",width:"200px",height:"320px",borderRadius:"15px",display:"flex",flexDirection:"column",padding:"3px",background:"white",cursor:"pointer"}} onClick={(e)=>{selitem(value["name"],value)}}>
                     <span style={{width:"100%",fontSize:"20px",fontWeight:"bold",textAlign:"center",textWrap:"wrap",borderBottom:"2px solid black",fontFamily: "'Segoe UI', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif'"}}>{value["name"]}</span>
                     <span style={{position:"absolute",top:"10%",left:"0px",width:"50px",height:"fitContent",borderBottomRightRadius:"15px",borderTopRightRadius:"15px",borderRight:"2px solid black",background:"red",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{value["damage"]}</span>
                     <span style={{position:"absolute",top:"10%",right:"0px",width:"50px",height:"fitContent",borderBottomLeftRadius:"15px",borderTopLeftRadius:"15px",borderLeft:"2px solid black",background:"aquamarine",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{value["cooldown"]}</span>
                     <div style={{height:"150px",width:"100%"}}></div>
                     <div style={{width:"100%",flex:"1",background:"#ffcccc",borderRadius:"15px",display:"flex",justifyContent:"center",alignContent:"center"}}>{formattextfunction(value["description"])}</div>
+                    
                 </div>
             )
         })
@@ -206,14 +230,18 @@ function Gallery(){
     return(
         <div style={{width:"100%",height:"100%",display:'flex',alignContent:"start"}}>
             <div id='selitemindex' style={{display:"none"}}>0</div>
-            <div style={{width:"70%",height:"100%",display:'flex',justifyContent:'center',margin:"5px",flexWrap:"wrap"}}>
+            <div style={{width:"100%",height:"100%",display:'flex',justifyContent:'center',margin:"5px",flexWrap:"wrap"}}>
                 {headerdiv}
-                <div style={{minWidth:"100%",height:"94vh",display:"flex",flexWrap:"wrap",overflowY:"auto",scrollbarWidth:"none",gap:"10px",padding:"10px",alignContent:"start"}}>{itemcards}{loghighlighter}</div>
+                <div style={{minWidth:"100%",height:"94vh",display:"flex",flexWrap:"wrap",overflowY:"auto",scrollbarWidth:"none",gap:"10px",padding:"10px",justifyContent:"center"}}>
+                    {itemcards}
+                    {loghighlighter}
+                    <div style={{height:"100px",width:"100%"}}></div>
+                </div>
             </div>
             {/* <div style={{width:"250px",height:"500px",position:"absolute",top:"50%",right:"0px",transform:"translate(-0%, -50%)",display:"flex",flexDirection:"column",rowGap:"5px",justifyContent:"flex-end"}}>
                 {cardseldiv}
             </div> */}
-            <div style={{width:"100%",height:"350px",position:"absolute",left:"0px",bottom:"0px",display:"flex",alignContent:"center",overflow:"hidden",justifyContent:"center",gap:"10px"}}>
+            <div style={{width:"100%",height:"350px",position:"absolute",left:"0px",bottom:"0px",display:"flex",alignContent:"center",overflow:"hidden",gap:"10px",userSelect:"none",justifyContent:"center"}}>
                 {cardseldiv}
             </div>
             {/* <div style={{width:"100%",margin:"10px",display:'flex',justifyContent:"center"}}></div> */}

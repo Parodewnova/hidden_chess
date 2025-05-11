@@ -64,3 +64,11 @@ body{
     transform: translateY(0);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+
+.highlightcardcss{
+    border: 2px solid black;
+}
+.highlightcardcss:hover{
+    transform: translateY(-10px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}

@@ -12,6 +12,7 @@ effects = #BA8E23
 [|stylecolor:#BA8E23,tooltip:{all_status['bleed']['tooltip'].replace(' ','~')}###bleed|style] tooltips
 Stabs the front tile, dealing->format:damagetypephysical###2 damage->, applies->format:status###bleed->for 1 round
 Stabs the front tile, dealing->format:damagetypephysical###2 damage->, applies->format:status###bleed&burn->for 1 round  === for multiiple statuses
+"Sets an ->format:custom:color:#808080,tooltip:can't be found through vision###invisible-> mine, applies->format:status###exposed->for 2 rounds"
 
 
 "tileformat":"x-x-A", A == exclude tile

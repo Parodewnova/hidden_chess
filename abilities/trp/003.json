@@ -13,7 +13,7 @@
         "cooldown":1,
         "name":"gas-mine",
         "effect-duration":2,
-        "effect":["poison","burn"],
+        "effect":["poison"],
         "invisible":false,
         "tileformat":"I",
         "cursor":"global",

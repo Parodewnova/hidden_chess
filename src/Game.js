@@ -36,7 +36,8 @@ function Game(){
     
     const [playerlistdiv,setplayerlistdiv] = useState(null)
     const [end_card,setEnd_card] = useState(null)
-    const [audio, setAudio] = useState(null);
+    const [audio, setAudio] = useState({})
+    const [toPlay,setToPlay] = useState("")
  
     async function checkvalidvalues(lobbyID,userID){ // will return game stats
         const json_data = {
@@ -246,7 +247,7 @@ function Game(){
             }
         }
         setgameboard(
-            <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",display:"flex",width:`${(tilesize+2)*getstorage("boardwidth")}px`,flexWrap:"wrap"}}>
+            <div style={{position:"absolute",left:"50%",top:"40%",transform:"translate(-50%,-50%)",display:"flex",width:`${(tilesize+2)*getstorage("boardwidth")}px`,flexWrap:"wrap"}}>
                 {tiledivarr}
             </div>
         )
@@ -342,6 +343,7 @@ function Game(){
                     <span style={{position:"absolute",top:"10%",right:"0px",width:"50px",height:"fitContent",borderBottomLeftRadius:"15px",borderTopLeftRadius:"15px",borderLeft:"2px solid black",background:"aquamarine",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{cooldown}</span>
                     <div style={{height:"150px",width:"100%"}}></div>
                     <div style={{width:"100%",flex:"1",background:"#ffcccc",borderRadius:"15px",display:"flex",justifyContent:"center",alignContent:"center"}}>{formattextfunction(description,false)}</div>
+                    <div style={{zIndex:"100",display:cardcooldown!=0?"block":"none",background:"rgba(0.5,0.5,0.5,0.5)",position:"absolute",top:"0px",left:"0px",width:"100%",height:"100%",borderRadius:"15px"}}></div>
                 </div>
                 // <div style={{background:cardcooldown!=0?"rgba(0.5,0.5,0.5,0.5)":null,cursor:"pointer"}} className="card-popup" id={identifier} onClick={(e)=>{
                 //     if(cardcooldown!=0){
@@ -406,23 +408,27 @@ function Game(){
         }
         sethighlightedtile(convertTileFormat(reply,tileformat,leader))
     }
-    // async function loadsoundsystem(){
-    //     const sound = new Audio(serverurl+"api-game/fetchgamesounds/newround")
-    //     await new Promise((resolve, reject) => {
-    //         sound.oncanplaythrough = resolve; // Fires when enough data is loaded
-    //         sound.onerror = reject; // Fires if loading fails
-    //         // Some browsers need this to start loading
-    //         sound.load();
-    //         setAudio(sound)
-    //       });
-    // }
+    async function loadsoundsystem(){
+        const allsoundsarr = await fetch(serverurl+"api-game/fetchgamesounds").then(response=>response.json()).then(data => data)
+        const soundjson = {}
+        for (const name of allsoundsarr["content"]){
+            const name_set = name.replace(".mp3","")
+            const sound = new Audio(serverurl+"api-game/fetchgamesounds/"+name_set)
+            await new Promise((resolve, reject) => {
+                sound.oncanplaythrough = resolve; // Fires when enough data is loaded
+                sound.onerror = reject; // Fires if loading fails
+                // Some browsers need this to start loading
+                soundjson[name_set] = sound
+              });
+        }
+        setAudio(soundjson)
+    }
     useEffect(() => { // set up websocket
         if(!loaded){
             return
         }
         socketRef.current = new WebSocket('ws://localhost:8000/clientSOCKET/'+getstorage("userID")+"/"+lobbyid);
-        
-        //loadsoundsystem()
+
         // Connection opened
         socketRef.current.onopen = () => {
             //console.log('WebSocket connected');
@@ -528,8 +534,11 @@ function Game(){
                     continue
                 }
                 if(event=="new-round"){
-                    // audio.currentTime = 0
-                    // audio.play()
+                    //setToPlay("newround")
+                }
+                if(event.includes("play-track")){
+                    const split = event.split(":")
+                    setToPlay(split[1])
                 }
             }
         };
@@ -542,6 +551,15 @@ function Game(){
         }
         };
     }, [loaded]);
+    useEffect(() => {
+        if(audio[toPlay]==null){
+            return
+        }
+        audio[toPlay].load();
+        audio[toPlay].currentTime = 0
+        audio[toPlay].play()
+        setToPlay("")
+    }, [toPlay]);
     useEffect(() => { // highlighted tiles changed
         const allHighlightTiles = Array.from(document.querySelectorAll("#userinteractiontile"))
         for(const tile of allHighlightTiles){
@@ -568,9 +586,8 @@ function Game(){
     useEffect(() => {
         checkvalidvalues(lobbyid, getstorage("userID"));
         // sethighlightedtile(convertTileFormat("2_0","xxxxx-ooooo-ooLoo",true))
+        loadsoundsystem()
     }, []);
-
-
     // function formattextfunction(message){
     //     const text_arr = []
     //     const logsplit = message.split("|style")
@@ -621,7 +638,6 @@ function Game(){
     //     }
     //     return(<div style={{margin:"3px",maxWidth:"100%",display:"flex",flexWrap:"wrap",alignContent:"center"}}>{text_arr}</div>)
     // }
-
     function formattextfunction(message,logcontent){
         const defaultfontsize = 15
         const text_arr = []
@@ -723,7 +739,7 @@ function Game(){
                     {playerlistdiv}
                     <div style={{display:"flex",flexDirection:"column",marginTop:"5px",border:"1px solid white",background:"bisque"}}>
                         <h1 style={{width:"100%",textAlign:"center",fontSize:"15px"}}>--LOGS--</h1>
-                        <div id='logmessagelist' style={{overflowY:"auto",display:"flex",flexDirection:"column",maxHeight:"200px"}}>
+                        <div id='logmessagelist' style={{overflowY:"auto",overflowX:"hidden",display:"flex",flexDirection:"column",maxHeight:"200px",scrollbarWidth:"none"}}>
                             {gamelogs.map((log, index) => {
                                 return formattextfunction(log,true)
                                 const text_arr = []
@@ -780,7 +796,7 @@ function Game(){
                     </div> 
                 </div>
                 <div style={{display:"flex",justifyContent:"center",alignContent:"center",flex:"1"}} id="main-nav">
-                    <div id="message_display" style={{position:"absolute",top:"10%",left:"50%",transform:"translate(-50%, 0%)",fontSize:"20px",fontWeight:"bold"}}></div>
+                    <div id="message_display" style={{position:"absolute",top:"5%",left:"50%",transform:"translate(-50%, 0%)",fontSize:"20px",fontWeight:"bold"}}></div>
                     {gameboard}
                 </div>
             </div>

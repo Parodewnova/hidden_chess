@@ -6,7 +6,7 @@ import os
 
 import json,random
 
-test = True
+test = False
 trigger_own_trap = False
 
 app = FastAPI()
@@ -75,7 +75,8 @@ class playerblueprint():
         "visibletokens":{},
         "misc_tokenkeys":{
             "enemy_location":[] #token #tile
-        }
+        },
+        "damaged_logs":{}
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -171,12 +172,12 @@ def updateplayerlogs(lobby_ID,player,message):
 async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     await websocket.accept()
     registered_guests[userID] = websocket
-    updateplayerlogs(lobbyID,userID,f"|stylebold:true###{playerusernames[userID]}|stylejoined the lobby")
+    updateplayerlogs(lobbyID,userID,formatcarddescription(f"->format:custom:bold:true###{playerusernames[userID]}->joined the lobby"))
 
 
     for player in all_rooms[lobbyID].room_data["players"]:
         if player!=userID:
-            updateplayerlogs(lobbyID,player,f"|stylebold:true###{playerusernames[userID]}|stylejoined the lobby")
+            updateplayerlogs(lobbyID,player,formatcarddescription(f"->format:custom:bold:true###{playerusernames[userID]}->joined the lobby"))
             break
     if(len(all_rooms[lobbyID].room_data["players"])==1):
         all_rooms[lobbyID].room_data["leader"] = userID
@@ -201,7 +202,7 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
         all_rooms[lobbyID].room_data["players"].remove(userID)
         for player in all_rooms[lobbyID].room_data["players"]:
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"] = False
-            updateplayerlogs(lobbyID,player,f"|stylebold:true###{playerusernames[userID]}|style        has left the lobby")
+            updateplayerlogs(lobbyID,player,formatcarddescription(f"->format:custom:bold:true###{playerusernames[userID]}->has left the lobby"))
         try:
             all_rooms[lobbyID].room_data["leader"] = all_rooms[lobbyID].room_data["players"][0]
             await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
@@ -245,9 +246,30 @@ async def thebeginning(lobby_ID: str):
     })
 #@app.get("/api-game/newround/{lobby_ID}")
 async def nextround(lobby_ID: str):
+    allplayers = all_rooms[lobby_ID].room_data["players"]
+    # see who got hit and send the sound effects before the round increments
+    for player in allplayers:
+        got_hit = False
+        damaged_logs = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["damaged_logs"]
+        round = all_rooms[lobby_ID].room_data["rounds"]
+        if not round in damaged_logs:
+            continue
+        round_logs = damaged_logs[round]
+        for log_item in round_logs:
+            if log_item["cause-entity"]==get_opposition(allplayers,player):
+                got_hit = True
+                break
+        if got_hit: # send the hit notification to the other user
+            await deliverMessageToClient([get_opposition(allplayers,player)],{
+                "leader":all_rooms[lobby_ID].room_data["leader"],
+                "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
+                "event":["play-track:hitenemy"] #
+            })
+                
+
+    
     all_rooms[lobby_ID].room_data["rounds"]+=1
     updateplayerlogs(lobby_ID,"",f"|stylebold:true###Round {str(all_rooms[lobby_ID].room_data['rounds'])}")
-    allplayers = all_rooms[lobby_ID].room_data["players"]
     for player in allplayers:
         player_stats = all_rooms[lobby_ID].room_data["playerstats"][player].player_data
         player_stats["ready"] = False
@@ -357,11 +379,11 @@ async def nextround(lobby_ID: str):
         for player in allplayers:
            await registered_guests[player].close()
         return
-   
+    
     await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
         "leader":all_rooms[lobby_ID].room_data["leader"],
         "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-        "event":["reset-abilities-&-actions","update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard","new-round"]
+        "event":["reset-abilities-&-actions","update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard"]
     })
 
 def setRandomID():
@@ -400,7 +422,19 @@ def getserversideabilityinfo(identifier,specific): #'trp:001'
         return json_loaded[specific]
 def player_taking_damage(player_data_json,damage):#player is victim
     player_data_json["health"][0]-=damage
-
+def update_playerdamagelogs(currentRound,player_data_json,damagelogjson):
+    # { damagelogjson example
+    #     "damage":2,
+    #     "cause":"",
+    #     "cause-type":"" #mine? attacK?
+    #     "cause-entity":"" # which entity caused it (the players name or bot if its a status effect just put status)
+    # }
+    arr = []
+    if currentRound in player_data_json["damaged_logs"]:
+        arr = player_data_json["damaged_logs"][currentRound]
+    arr.append(damagelogjson)
+    player_data_json["damaged_logs"][currentRound] = arr
+    
 
 
 all_types = ['utl',"trp","mov",'atk']
@@ -451,6 +485,7 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
                 trap_str+=eff+"&"
             trap_str = trap_str[:-1]+"->"
         updateplayerlogs(lobbyID,player,f"You stepped into|stylecolor:#71706E###{trap_json['name']}|style{formatcarddescription(outputstr)} and it inflicted {formatcarddescription(trap_str)}")
+        update_playerdamagelogs(all_rooms[lobbyID].room_data["rounds"],all_rooms[lobbyID].room_data["playerstats"][player].player_data,{"damage":trap_json['damage'],"cause":trap_json["name"],"cause-type":"trap","cause-entity":tiledata[data]["setter"]})
     #remove trap from gameboard
     for removaltrap in setforRemoval:
         del tiledata[removaltrap]
@@ -480,17 +515,19 @@ def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
             if inflicted:
                 applyeffect(lobbyID,json_["identifier"],enemy,[])
             
-            logtxt = (f"for|stylecolor:#FF0000###{ability_json['damage']} damage|style") if damage else ""
-            statusapplied = "[" if inflicted else ""
+            logtxt = (f"for->format:damagetypephysical###{ability_json["damage"]} damage->") if damage else ""
+            statusapplied = "->format:status###" if inflicted else ""
             if inflicted:
                 for effect in ability_json['effect']:
-                    statusapplied+=f"|stylecolor:#BA8E23,tooltip:{all_status[effect]['tooltip'].replace(' ','~')}###{effect}|style "
-                statusapplied = statusapplied.rstrip().replace(" ",",")+"]"
-            updateplayerlogs(lobbyID,enemy,f"hit by |stylecolor:#71706E###{ability_json['name']}|style{logtxt}{("and inflicted with "+statusapplied) if inflicted else ""}")
-            logtxt = (f"for|stylecolor:#FF0000###{ability_json['damage']} damage|style") if damage else ""
-            updateplayerlogs(lobbyID,json_["user"],f"hit |stylebold:true###{playerusernames[enemy]}|style{logtxt}using|stylecolor:#71706E###{ability_json['name']}{("|style, inflicted "+statusapplied) if inflicted else ""}")
+                    statusapplied+=f"{effect}&"
+                statusapplied = statusapplied[:-1]+"->"
+            updateplayerlogs(lobbyID,enemy,formatcarddescription(f"hit by ->format:itemname###{ability_json["name"]}->{logtxt}{("and inflicted with "+statusapplied) if inflicted else ""}"))
+            logtxt = (f"for->format:damagetypephysical###{ability_json["damage"]} damage->") if damage else ""
+            updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"hit->format:custom:bold:true###{playerusernames[enemy]}->{logtxt}using->format:itemname###{ability_json["name"]}->{(", inflicted "+statusapplied) if inflicted else ""}"))
+            update_playerdamagelogs(all_rooms[lobbyID].room_data["rounds"],all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,{"damage":ability_json["damage"],"cause":ability_json["name"],"cause-type":"attack","cause-entity":json_["user"]})
     if not touched:
-        updateplayerlogs(lobbyID,json_["user"],f"used |stylecolor:#71706E###{ability_json['name']}|style and it missed")
+        updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"used->format:itemname###{ability_json["name"]}->and it missed"))
+        return False
 def utl_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
     ability_json = getserversideabilityinfo(json_["identifier"],"")
     inflicted = True if len(ability_json["effect"])!=0 else False
@@ -749,8 +786,11 @@ async def funcapi6(lobby_id:str,user_id:str,component:str):
 @app.get("/api-game/fetchgamesettings")
 async def funcapi7():
     return JSONResponse(content={"board-size":gameboard_size},status_code=200)
+@app.get("/api-game/fetchgamesounds")
+async def funcapi8():
+    return JSONResponse(content={"content":os.listdir("./gallery-mp3")},status_code=200)
 @app.get("/api-game/fetchgamesounds/{sound}")
-async def funcapi8(sound:str):
+async def funcapi9(sound:str):
     return FileResponse(
         path="./gallery-mp3/"+sound+".mp3",
         media_type="audio/mpeg",
@@ -794,8 +834,16 @@ def formatcarddescription(description):
                 if(comp_split[0]=="tooltip"):
                     add_content+=f"tooltip:{comp_split[1].replace(' ','~')},"
                     continue
+                if(comp_split[0]=="bold"):
+                    add_content+=f"bold:true,"
+                    continue
             new_description+=f"|style{add_content[:-1]}###{split[1]}|style "
             continue
+        if(wantedformat=="itemname"):
+            hexcolor = "#71706E"
+            new_description+=f"|stylecolor:{hexcolor}###{split[1]}|style "
+            continue
+        print(new_description)
     return new_description.strip()
 
 

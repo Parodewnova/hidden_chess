@@ -6,7 +6,7 @@ import os
 
 import json,random
 
-test = False
+test = True
 trigger_own_trap = False
 
 app = FastAPI()
@@ -477,7 +477,7 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
         trap_str = ""
         if damage:
             player_taking_damage(all_rooms[lobbyID].room_data["playerstats"][player].player_data,trap_json["damage"])
-            outputstr+=f"it dealt->format:damagetypephysical###{trap_json["damage"]} damage->"
+            outputstr+=f"it dealt->format:damagetypephysical###{trap_json['damage']} damage->"
         if inflicted:
             applyeffect(lobbyID,tiledata[data]["identifier"],player,[])
             trap_str = "->format:status###"
@@ -515,18 +515,18 @@ def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
             if inflicted:
                 applyeffect(lobbyID,json_["identifier"],enemy,[])
             
-            logtxt = (f"for->format:damagetypephysical###{ability_json["damage"]} damage->") if damage else ""
+            logtxt = (f"for->format:damagetypephysical###{ability_json['damage']} damage->") if damage else ""
             statusapplied = "->format:status###" if inflicted else ""
             if inflicted:
                 for effect in ability_json['effect']:
                     statusapplied+=f"{effect}&"
                 statusapplied = statusapplied[:-1]+"->"
-            updateplayerlogs(lobbyID,enemy,formatcarddescription(f"hit by ->format:itemname###{ability_json["name"]}->{logtxt}{("and inflicted with "+statusapplied) if inflicted else ""}"))
-            logtxt = (f"for->format:damagetypephysical###{ability_json["damage"]} damage->") if damage else ""
-            updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"hit->format:custom:bold:true###{playerusernames[enemy]}->{logtxt}using->format:itemname###{ability_json["name"]}->{(", inflicted "+statusapplied) if inflicted else ""}"))
+            updateplayerlogs(lobbyID,enemy,formatcarddescription(f"hit by ->format:itemname###{ability_json['name']}->{logtxt}{('and inflicted with '+statusapplied) if inflicted else ''}"))
+            logtxt = (f"for->format:damagetypephysical###{ability_json['damage']} damage->") if damage else ""
+            updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"hit->format:custom:bold:true###{playerusernames[enemy]}->{logtxt}using->format:itemname###{ability_json['name']}->{(', inflicted '+statusapplied) if inflicted else ''}"))
             update_playerdamagelogs(all_rooms[lobbyID].room_data["rounds"],all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,{"damage":ability_json["damage"],"cause":ability_json["name"],"cause-type":"attack","cause-entity":json_["user"]})
     if not touched:
-        updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"used->format:itemname###{ability_json["name"]}->and it missed"))
+        updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"used->format:itemname###{ability_json['name']}->and it missed"))
         return False
 def utl_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
     ability_json = getserversideabilityinfo(json_["identifier"],"")

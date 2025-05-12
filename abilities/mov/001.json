@@ -4,7 +4,9 @@
         "identifier":"mov:001",
         "damage":0,
         "cooldown":0,
-        "tileformat":"oxo-xLx-oxo",
+        "tileformat":"L",
+        "penis":"oxo-xLx-oxo",
+        "effectType":"single",
         "description":"move to a tile"
     },
     "serverside":{
@@ -12,7 +14,8 @@
         "cooldown":0,
         "id":"001",
         "type":"mov",
-        "tileformat":"oxo-xLx-oxo",
-        "select-type":"single"
+        "tileformat":"I",
+        "cursor":"global",
+        "selfcast":false
     }
 }

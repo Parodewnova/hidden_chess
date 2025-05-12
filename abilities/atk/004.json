@@ -1,0 +1,21 @@
+{
+    "clientside":{
+        "name":"flame-aura",
+        "identifier":"atk:004",
+        "damage":1,
+        "cooldown":2,
+        "tileformat":"xxx-xLx-xxx",
+        "effectType":"AOE",
+        "description":"deal->format:damagetypephysical###1 damage->and applies->format:status###burn->for 2 rounds around the player"
+    },
+    "serverside":{
+        "damage":1,
+        "cooldown":2,
+        "name":"flame-aura",
+        "effect-duration":2,
+        "effect":["burn"],
+        "tileformat":"xxx-xAx-xxx",
+        "cursor":"player",
+        "friendly-fire":false
+    }
+}

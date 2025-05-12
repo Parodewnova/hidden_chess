@@ -4,6 +4,7 @@ import { BrowserRouter, Routes,Route } from 'react-router-dom';
 
 import Home from './Home';
 import Game from './Game';
+import Gallery from './Gallery';
 
 const root = ReactDOM.createRoot(document.getElementById('root'))
 root.render(
@@ -11,6 +12,7 @@ root.render(
     <Routes>
         <Route exact path="/" element={<Home/>}/>
         <Route exact path="/gamelobby/:lobbyid" element={<Game/>}/>
+        <Route exact path="/gallery" element={<Gallery/>}/>
     </Routes>
   </BrowserRouter>
 );
@@ -23,5 +25,8 @@ export function setstorage(key,value){
 }
 export function getstorage(key){
   return sessionStorage.getItem(key)
+}
+export function maxslots(){
+  return 6
 }
  

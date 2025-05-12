@@ -1,5 +1,5 @@
 import "./css/Home.css"
-import {getstorage, mainurl,serverurl,setstorage} from "./index.js"
+import {getstorage, mainurl,serverurl,setstorage,maxslots} from "./index.js"
 
 function displayMessage(message){
     const displaymessagediv = document.getElementById("message")
@@ -38,6 +38,14 @@ async function joinserver(){
     //     displayMessage("username can't be empty")
     //     return
     // }
+    // check if user has their items
+    for(let check1=0;check1<maxslots();check1++){
+        const value = getstorage("itemslot"+check1)
+        if(value===null){
+            displayMessage("select your loadout first")
+            return
+        }
+    }
     const reply = await fetch(serverurl+"joinserverrequest/"+user_ID+"/"+user_input_value+"/"+username,{
         method:"GET"
     })
@@ -74,13 +82,16 @@ async function joinserver(){
 function Home(){
     return(
         <div style={{width:"100%",height:"100vh",display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",gap:"3px",backgroundColor:" #091f38"}}>
-            {/* <img src="http://localhost:8000/get-image/pngtree-qitian-dasheng-sun-wukong-comic-character-design-charactersjourney-to-the-png-image_4025730.jpg" style={{width:"100px",height:"100px"}}></img> */}
             <title>Hidden Chess</title> 
             <span style={{position:"absolute",top:"10%",textWrap:"nowrap"}}className="main-title">Hidden Chess</span>
             <span style={{textAlign:"center"}} className="user-id">Username:<input id="username" className="custom-input"></input> UserID: {user_ID}</span>
             <input id="input_ID" className="custom-input" style={{textAlign:"center"}} placeholder="Room-ID"></input>
             <button className="joinbutton" style={{margin:"10px"}} onClick={joinserver}>Join</button>
             <div id="message" style={{textAlign:"center",color:"red"}}></div>
+
+
+
+            <a href={mainurl+"gallery"}>Gallery</a>
         </div>
     )
 }

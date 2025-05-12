@@ -5,7 +5,8 @@
         "damage":2,
         "cooldown":0,
         "tileformat":"x-L",
-        "description":"Stabs the front tile & applies bleed for 1 rounds"
+        "effectType":"single",
+        "description":"Stabs the front tile, dealing->format:damagetypephysical###2 damage->, applies->format:status###bleed->for 1 round"
     },
     "serverside":{
         "damage":2,
@@ -13,7 +14,8 @@
         "name":"strike",
         "effect-duration":1,
         "effect":["bleed"],
-        "tileformat":"x-L",
-        "select-type":"fixed"
+        "tileformat":"x-A",
+        "cursor":"player",
+        "friendly-fire":false
     }
 }

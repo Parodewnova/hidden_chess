@@ -1,0 +1,22 @@
+{
+    "clientside":{
+        "name":"mine",
+        "identifier":"trp:004",
+        "damage":3,
+        "cooldown":1,
+        "tileformat":"xxxxx-xxxxx-xxLxx-xxxxx-xxxxx",
+        "effectType":"single",
+        "description":"Sets a mine that deals->format:damagetypephysical###3 damage"
+    },
+    "serverside":{
+        "damage":3,
+        "cooldown":1,
+        "name":"mine",
+        "effect-duration":0,
+        "effect":[],
+        "invisible":false,
+        "tileformat":"I",
+        "cursor":"global",
+        "friendly-fire":true
+    }
+}

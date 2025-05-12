@@ -1,0 +1,21 @@
+{
+    "clientside":{
+        "name":"aerial-scan",
+        "identifier":"utl:004",
+        "damage":0,
+        "cooldown":5,
+        "tileformat":"L",
+        "effectType":"AOE",
+        "description":"reveal all tile in a 3x3 area for 1 rounds"
+    },
+    "serverside":{
+        "damage":0,
+        "cooldown":5,
+        "name":"aerial-scan",
+        "effect-duration":1,
+        "effect":["UAV"],
+        "tileformat":"xxx-xIx-xxx",
+        "cursor":"global",
+        "selfcast":true
+    }
+}

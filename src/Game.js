@@ -1,13 +1,12 @@
 import React, { useEffect,useRef,useContext  } from 'react';
 import { useState } from "react";
 import {useParams} from 'react-router-dom'
-import {serverurl,getstorage, mainurl, setstorage} from "./index.js"
+import {serverurl,getstorage, mainurl, setstorage,maxslots} from "./index.js"
 import {userReady,settiledisplay,fetchplayerstats,gamestartfunction,newroundfunction, convertTileFormat,messagetoserver} from "./Game_Utils.js"
 import useSound from 'use-sound';
 
 import "./css/Game.css"
 import "./css/cardpopup.css"
-
 
 // getstorage("userID") ==> user id
 
@@ -37,7 +36,8 @@ function Game(){
     
     const [playerlistdiv,setplayerlistdiv] = useState(null)
     const [end_card,setEnd_card] = useState(null)
-    const [audio, setAudio] = useState(null);
+    const [audio, setAudio] = useState({})
+    const [toPlay,setToPlay] = useState("")
  
     async function checkvalidvalues(lobbyID,userID){ // will return game stats
         const json_data = {
@@ -247,7 +247,7 @@ function Game(){
             }
         }
         setgameboard(
-            <div style={{position:"absolute",left:"50%",top:"50%",transform:"translate(-50%,-50%)",display:"flex",width:`${(tilesize+2)*getstorage("boardwidth")}px`,flexWrap:"wrap"}}>
+            <div style={{position:"absolute",left:"50%",top:"40%",transform:"translate(-50%,-50%)",display:"flex",width:`${(tilesize+2)*getstorage("boardwidth")}px`,flexWrap:"wrap"}}>
                 {tiledivarr}
             </div>
         )
@@ -296,7 +296,8 @@ function Game(){
             const cardcooldown = reply[name]["currentcooldown"]
             
             const card = 
-                <div style={{background:cardcooldown!=0?"rgba(0.5,0.5,0.5,0.5)":null,cursor:"pointer"}} className="card-popup" id={identifier} onClick={(e)=>{
+                <div id={identifier} className="hovercardcss" style={{position:"relative",width:"200px",height:"320px",borderRadius:"15px",display:"flex",flexDirection:"column",padding:"3px",background:"white",cursor:"pointer"}} 
+                onClick={(e)=>{
                     if(cardcooldown!=0){
                         return
                     }
@@ -311,12 +312,21 @@ function Game(){
                         }
 
                         setFocusedCard(
-                            <div className="focused-card">
-                                <h1>{name}</h1>
-                                <p>Damage: {damage}</p>
-                                <p>CD: {cooldown}</p>
-                                <p>{description}</p>
+                            <div style={{position:"absolute",top:"20%",left:"30px",userSelect:"none"}}>
+                                <div id={identifier} style={{position:"relative",width:"200px",height:"320px",borderRadius:"15px",display:"flex",flexDirection:"column",padding:"3px",background:"white",cursor:"default"}}>
+                                    <span style={{width:"100%",fontSize:"20px",fontWeight:"bold",textAlign:"center",textWrap:"wrap",borderBottom:"2px solid black",fontFamily: "'Segoe UI', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif'"}}>{name}</span>+
+                                    <span style={{position:"absolute",top:"10%",left:"0px",width:"50px",height:"fitContent",borderBottomRightRadius:"15px",borderTopRightRadius:"15px",borderRight:"2px solid black",background:"red",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{damage}</span>
+                                    <span style={{position:"absolute",top:"10%",right:"0px",width:"50px",height:"fitContent",borderBottomLeftRadius:"15px",borderTopLeftRadius:"15px",borderLeft:"2px solid black",background:"aquamarine",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{cooldown}</span>
+                                    <div style={{height:"150px",width:"100%"}}></div>
+                                    <div style={{width:"100%",flex:"1",background:"#ffcccc",borderRadius:"15px",display:"flex",justifyContent:"center",alignContent:"center"}}>{formattextfunction(description,false)}</div>
+                                </div>
                             </div>
+                            // <div className="focused-card">
+                            //     <h1>{name}</h1>
+                            //     <p>Damage: {damage}</p>
+                            //     <p>CD: {cooldown}</p>
+                            //     <p>{description}</p>
+                            // </div>
                         )
                         setminihighlight(null)
                         setspectatingtile(null)
@@ -328,16 +338,54 @@ function Game(){
                     }
 
                 }}>
-                    <h2>{name}</h2>
-                    <p>Damage: {damage}</p>
-                    <p>CD: {cooldown}</p>
+                    <span style={{width:"100%",fontSize:"20px",fontWeight:"bold",textAlign:"center",textWrap:"wrap",borderBottom:"2px solid black",fontFamily: "'Segoe UI', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif'",userSelect:"none"}}>{name}</span>
+                    <span style={{position:"absolute",top:"10%",left:"0px",width:"50px",height:"fitContent",borderBottomRightRadius:"15px",borderTopRightRadius:"15px",borderRight:"2px solid black",background:"red",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{damage}</span>
+                    <span style={{position:"absolute",top:"10%",right:"0px",width:"50px",height:"fitContent",borderBottomLeftRadius:"15px",borderTopLeftRadius:"15px",borderLeft:"2px solid black",background:"aquamarine",display:'flex',justifyContent:"center",alignContent:"center",fontSize:"25px",fontFamily: "'Impact', 'Arial Black', sans-serif",}}>{cooldown}</span>
+                    <div style={{height:"150px",width:"100%"}}></div>
+                    <div style={{width:"100%",flex:"1",background:"#ffcccc",borderRadius:"15px",display:"flex",justifyContent:"center",alignContent:"center"}}>{formattextfunction(description,false)}</div>
+                    <div style={{zIndex:"100",display:cardcooldown!=0?"block":"none",background:"rgba(0.5,0.5,0.5,0.5)",position:"absolute",top:"0px",left:"0px",width:"100%",height:"100%",borderRadius:"15px"}}></div>
                 </div>
-            
+                // <div style={{background:cardcooldown!=0?"rgba(0.5,0.5,0.5,0.5)":null,cursor:"pointer"}} className="card-popup" id={identifier} onClick={(e)=>{
+                //     if(cardcooldown!=0){
+                //         return
+                //     }
+                //     if(useractiondone){
+                //         return
+                //     }
+                //     const cardDIV = e.currentTarget
+                //     if(clickedAbility["identifier"]!=cardDIV.getAttribute("id")){
+                //         setTilesToHighlight(tileformat,game_details["leader"]==getstorage("userID"))
+                //         clickedAbility = {
+                //             "identifier":identifier
+                //         }
+
+                //         setFocusedCard(
+                //             <div className="focused-card">
+                //                 <h1>{name}</h1>
+                //                 <p>Damage: {damage}</p>
+                //                 <p>CD: {cooldown}</p>
+                //                 <p>{description}</p>
+                //             </div>
+                //         )
+                //         setminihighlight(null)
+                //         setspectatingtile(null)
+                //     }
+                //     else{
+                //         clickedAbility = {}
+                //         setFocusedCard(null);
+                //         sethighlightedtile([])
+                //     }
+
+                // }}>
+                //     <h2>{name}</h2>
+                //     <p>Damage: {damage}</p>
+                //     <p>CD: {cooldown}</p>
+                // </div>
             cards.push(card)
         }
         setShowCard(
-            <div className="card-container">
-            {cards}
+            <div style={{position:"fixed",bottom:"0px",left:"0px",right:"0px",display:'flex',justifyContent:"center",gap:"10px"}}>
+                {cards}
             </div>
         )
     }
@@ -360,121 +408,37 @@ function Game(){
         }
         sethighlightedtile(convertTileFormat(reply,tileformat,leader))
     }
-    async function handleServerMessages(message){ //json format
-        const gameinfo = {
-            "leader":message["leader"],
-            "ongoing":message["ongoing"]
-        }
-        for (var i =0;i<message["event"].length;i++){
-            const event = message["event"][i]
-            if(event=="game-end"){
-                sethighlightedtile([])
-                setFocusedCard(null)
-                setEnd_card(
-                    <div style={{position:"absolute",left:"0px",top:"0px",width:"100%",height:"100vh",background:"rgba(0.5,0.5,0.5,0.5)",zIndex:"1001"}}>
-                        <h1 style={{position:"absolute",left:"50%",top:"20%",transform:"translate(-50%,-0%)",color:"white",fontSize:"50px"}}>{message["losers"].includes(getstorage("userID"))?"YOU LOSE":"YOU WIN"}</h1>
-                    </div>
-                )
-            }
-            if(event=="request-user-logs"){
-                const playerlogs = (await fetchplayerstats(lobbyid,"player_logs"))//.replace("[","").replace("]","").replaceAll("'","").replaceAll("\"","").split(",")
-                //setGameLogs(playerlogs)
-            }
-            if(event=="toggle-start-button"){
-                gameinfo["readytobegin"] = message["readytobegin"]
-                await fetchplayerlist(gameinfo)
-                continue
-            }
-            if(event=="update-player-list"){
-                await fetchplayerlist(gameinfo)
-                continue
-            }
-            if(event=="update-player-gameboard"){
-                await fetchgameboarddisplay(gameinfo)
-                continue
-            }
-            if(event=="send-ability-gui"){
-                gameinfo["readytobegin"] = message["readytobegin"]
-                await displayfunctiongui(gameinfo)
-                continue
-            }
-            if(event=="update-user-tokens"){
-                setminihighlight(null)
-                setspectatingtile(null)
-                visibletoken = await fetchplayerstats(lobbyid,"visibletokens")
-                continue
-            }
-            if(event=="update-user-statuses"){ // request update statuses
-                const playerstatus = (await fetchplayerstats(lobbyid,"status"))
-                const statusDivArr = []
-                for(const status in playerstatus){
-                    const div_status = 
-                    <div className='statusiconcss' onMouseEnter={(e)=>{
-                        e.currentTarget.querySelector("#descriptionlabel").style.display = "flex"
-                    }} onMouseLeave={(e)=>{
-                        e.currentTarget.querySelector("#descriptionlabel").style.display = "none"
-                    }}>
-                        <img src={serverurl+"api-game/get_image/status-assests|"+status+".png"} style={{width:"100%",height:"100%",background:"white"}}></img>
-                        <div id='descriptionlabel' style={{position:"absolute",display:"none",flexDirection:"column",fontSize:"12px",background:"white",width:"fitContent",padding:"3px"}}>
-                            <span style={{color:'red',fontWeight:"bold",marginBottom:"3px"}}>{status}</span>
-                            {
-                                playerstatus[status]["data"].map((value, index)=>{
-                                    return (
-                                        <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
-                                            {Object.entries(value).map(([key, value]) =>{
-                                                    return (
-                                                        <span key={key}>{key}: {value}</span>
-                                                    )
-                                        
-                                            })}
-                                            {/* <span>duration: {value["duration"]}</span>
-                                            <span>source: {value["source"]}</span> */}
-                                        </div>
-                                    )
-                                })
-                            }
-                            <span style={{marginTop:"3px",marginBottom:"3px"}}>[{playerstatus[status]["description"]}]</span>
-                        </div>
-                    </div>
-                    statusDivArr.push(div_status)
-                }
-                setplayerstatus(statusDivArr)
-                continue
-            }
-            if(event=="reset-abilities-&-actions"){
-                // reset highlighted tiles
-                sethighlightedtile([])
-                clickedAbility = {}
-                setFocusedCard(null)
-                useractiondone = false
-                continue
-            }
-            if(event=="new-round"){
-                // audio.currentTime = 0
-                // audio.play()
-            }
-        }
-    }
     async function loadsoundsystem(){
-        const sound = new Audio(serverurl+"api-game/fetchgamesounds/newround")
-        await new Promise((resolve, reject) => {
-            sound.oncanplaythrough = resolve; // Fires when enough data is loaded
-            sound.onerror = reject; // Fires if loading fails
-            // Some browsers need this to start loading
-            sound.load();
-            setAudio(sound)
-          });
+        const allsoundsarr = await fetch(serverurl+"api-game/fetchgamesounds").then(response=>response.json()).then(data => data)
+        const soundjson = {}
+        for (const name of allsoundsarr["content"]){
+            const name_set = name.replace(".mp3","")
+            const sound = new Audio(serverurl+"api-game/fetchgamesounds/"+name_set)
+            await new Promise((resolve, reject) => {
+                sound.oncanplaythrough = resolve; // Fires when enough data is loaded
+                sound.onerror = reject; // Fires if loading fails
+                // Some browsers need this to start loading
+                soundjson[name_set] = sound
+              });
+        }
+        setAudio(soundjson)
     }
     useEffect(() => { // set up websocket
         if(!loaded){
             return
         }
         socketRef.current = new WebSocket('ws://localhost:8000/clientSOCKET/'+getstorage("userID")+"/"+lobbyid);
-        
+
         // Connection opened
         socketRef.current.onopen = () => {
-            console.log('WebSocket connected');
-            //socketRef.current.send("penis man");
+            //console.log('WebSocket connected');
+            //load user abilities
+            let ability_str = ""
+            for(let val = 0;val<maxslots();val++){
+                const ability_identifier = JSON.parse(getstorage("itemslot"+val).split("js789on_content")[1])["identifier"]
+                ability_str+=(ability_identifier+" ")
+            }
+            socketRef.current.send("[loadabilities]=>"+ability_str.trim())
         };
         
         // Listen for messages
@@ -544,9 +508,8 @@ function Game(){
                                             <div key={index} style={{border:"1px solid black",padding:"2px",display:"flex",flexDirection:"column"}}>
                                                 {Object.entries(value).map(([key, value]) =>{
                                                     if(key!="skip"){
-                                                        <span>{key}: {value[key]}</span>
+                                                        return <span>{key}: {value}</span>
                                                     }
-                                            
                                                 })}
                                                 {/* <span>duration: {value["duration"]}</span>
                                                 <span>source: {value["source"]}</span> */}
@@ -571,8 +534,11 @@ function Game(){
                     continue
                 }
                 if(event=="new-round"){
-                    audio.currentTime = 0
-                    audio.play()
+                    //setToPlay("newround")
+                }
+                if(event.includes("play-track")){
+                    const split = event.split(":")
+                    setToPlay(split[1])
                 }
             }
         };
@@ -585,6 +551,15 @@ function Game(){
         }
         };
     }, [loaded]);
+    useEffect(() => {
+        if(audio[toPlay]==null){
+            return
+        }
+        audio[toPlay].load();
+        audio[toPlay].currentTime = 0
+        audio[toPlay].play()
+        setToPlay("")
+    }, [toPlay]);
     useEffect(() => { // highlighted tiles changed
         const allHighlightTiles = Array.from(document.querySelectorAll("#userinteractiontile"))
         for(const tile of allHighlightTiles){
@@ -613,6 +588,148 @@ function Game(){
         // sethighlightedtile(convertTileFormat("2_0","xxxxx-ooooo-ooLoo",true))
         loadsoundsystem()
     }, []);
+    // function formattextfunction(message){
+    //     const text_arr = []
+    //     const logsplit = message.split("|style")
+    //     for(const value of logsplit){
+    //         if(value==""){
+    //             continue
+    //         }
+    //         const value_split = value.split("###")
+    //         if(value_split.length==1){
+    //             text_arr.push(<span style={{marginRight:"3px",fontSize:"13px"}}>{value_split[0].trim()}</span>)
+    //             continue
+    //         }
+    //         let bold = false
+    //         let size = 13
+    //         let colorhex = "#000000"
+    //         let tooltip = ""
+    //         const changed = value_split[0].replace(" ","").split(",")
+    //         for(const content of changed){
+    //             const split2 = content.split(":")
+    //             if(split2[0]==="bold"){
+    //                 bold = Boolean(split2[1])
+    //                 continue
+    //             }
+    //             if(split2[0]==="size"){
+    //                 size = parseInt(split2[1])
+    //                 continue
+    //             }
+    //             if(split2[0]==="color"){
+    //                 colorhex = split2[1]
+    //                 continue
+    //             }
+    //             if(split2[0]==="tooltip"){
+    //                 tooltip = split2[1]
+    //                 continue
+    //             }
+    //         }
+    //         text_arr.push(<span style={{marginRight:"3px",fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip===""?"default":"pointer"}} 
+    //         onMouseEnter={(e)=>{
+    //             if(tooltip===""){
+    //                 return
+    //             }
+    //             setloghighlighter(
+    //                 <div style={{position:"absolute",top:e.clientY+20,left:e.clientX-30,background:"white",fontSize:"12px",padding:"2px"}}>{tooltip.replaceAll("~"," ")}</div>
+    //             )
+    //         }}
+    //         onMouseLeave={(e)=>setloghighlighter(null)}
+    //         >{value_split[1]}</span>)
+    //     }
+    //     return(<div style={{margin:"3px",maxWidth:"100%",display:"flex",flexWrap:"wrap",alignContent:"center"}}>{text_arr}</div>)
+    // }
+    function formattextfunction(message,logcontent){
+        const defaultfontsize = 15
+        const text_arr = []
+        const logsplit = message.split("|style")
+        let bracket_content = false
+        let saved_status = []
+        for(const value of logsplit){
+            if(value==""){
+                continue
+            }
+            const value_split = value.split("###")
+            if(value_split.length==1){
+                if(value_split[0]!=="["){
+                    if(value_split[0]==="]"){
+                        saved_status.push(<span>{bracket_content?" ]":""}</span>)
+                        text_arr.push(<div style={{marginRight:"3px"}}>{saved_status}</div>)
+                        saved_status = []
+                        bracket_content = false
+                        continue
+                    }
+                    if(bracket_content){
+                        saved_status.push(<span style={{marginRight:"3px",fontSize:defaultfontsize+"px",textAlign:"center"}}>{value_split[0].trim()}</span>)
+                        continue
+                    }
+                    text_arr.push(<span style={{marginRight:"3px",fontSize:defaultfontsize+"px",textAlign:"center"}}>{value_split[0].trim()}</span>)
+                    continue
+                }
+                bracket_content = true
+                saved_status.push(<span>{bracket_content?"[ ":""}</span>)
+                continue
+            }
+            let bold = false
+            let size = defaultfontsize
+            let colorhex = "#000000"
+            let tooltip = ""
+            const changed = value_split[0].replace(" ","").split(",")
+            for(const content of changed){
+                const split2 = content.split(":")
+                if(split2[0]==="bold"){
+                    bold = Boolean(split2[1])
+                    continue
+                }
+                if(split2[0]==="size"){
+                    size = parseInt(split2[1])
+                    continue
+                }
+                if(split2[0]==="color"){
+                    colorhex = split2[1]
+                    continue
+                }
+                if(split2[0]==="tooltip"){
+                    tooltip = split2[1]
+                    continue
+                }
+            }
+            if(!bracket_content){
+                text_arr.push(
+                    <div style={{marginRight:"3px"}}>
+                        <span style={{fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip!==""?"pointer":"default",textAlign:"center"}} 
+                            onMouseEnter={(e)=>{
+                                if(tooltip===""){
+                                    return
+                                }
+                                setloghighlighter(
+                                    <div style={{position:"absolute",top:e.clientY+20,left:e.clientX-30,background:"white",fontSize:"12px",padding:"2px",borderRadius:"5px",border:"1px solid black",zIndex:"100"}}>{tooltip.replaceAll("~"," ")}</div>
+                                )
+                            }}
+                            onMouseLeave={()=>setloghighlighter(null)}
+                            >{value_split[1]}
+                        </span>
+                    </div>
+                )
+            }
+            else{
+                saved_status.push(<span style={{fontSize:`${size}px`,color:colorhex,fontWeight:bold?"bold":"normal",cursor:tooltip!==""?"pointer":"default",textAlign:"center"}} 
+                    onMouseEnter={(e)=>{
+                        if(tooltip===""){
+                            return
+                        }
+                        setloghighlighter(
+                            <div style={{position:"absolute",top:e.clientY+20,left:e.clientX-30,background:"white",fontSize:"12px",padding:"2px",borderRadius:"5px",border:"1px solid black",zIndex:"100"}}>{tooltip.replaceAll("~"," ")}</div>
+                        )
+                    }}
+                    onMouseLeave={()=>setloghighlighter(null)}
+                    >{value_split[1]}</span>)
+            }
+        }
+        return(<div style={{margin:"3px",maxWidth:"100%",display:"flex",flexWrap:"wrap",alignContent:"center",justifyContent:logcontent?"flex-start":"center"}}>{text_arr}</div>)
+    }
+
+
+
     return(
         <div style={{width:"100%",height:"100vh"}}>
             <div style={{display:"none"}} id='player-ready-state'>false</div>
@@ -622,8 +739,9 @@ function Game(){
                     {playerlistdiv}
                     <div style={{display:"flex",flexDirection:"column",marginTop:"5px",border:"1px solid white",background:"bisque"}}>
                         <h1 style={{width:"100%",textAlign:"center",fontSize:"15px"}}>--LOGS--</h1>
-                        <div id='logmessagelist' style={{overflowY:"auto",display:"flex",flexDirection:"column",maxHeight:"200px"}}>
+                        <div id='logmessagelist' style={{overflowY:"auto",overflowX:"hidden",display:"flex",flexDirection:"column",maxHeight:"200px",scrollbarWidth:"none"}}>
                             {gamelogs.map((log, index) => {
+                                return formattextfunction(log,true)
                                 const text_arr = []
                                 const logsplit = log.split("|style")
                                 for(const value of logsplit){
@@ -678,7 +796,7 @@ function Game(){
                     </div> 
                 </div>
                 <div style={{display:"flex",justifyContent:"center",alignContent:"center",flex:"1"}} id="main-nav">
-                    <div id="message_display" style={{position:"absolute",top:"10%",left:"50%",transform:"translate(-50%, 0%)",fontSize:"20px",fontWeight:"bold"}}></div>
+                    <div id="message_display" style={{position:"absolute",top:"5%",left:"50%",transform:"translate(-50%, 0%)",fontSize:"20px",fontWeight:"bold"}}></div>
                     {gameboard}
                 </div>
             </div>

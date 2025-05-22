@@ -174,7 +174,6 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     registered_guests[userID] = websocket
     updateplayerlogs(lobbyID,userID,formatcarddescription(f"->format:custom:bold:true###{playerusernames[userID]}->joined the lobby"))
 
-
     for player in all_rooms[lobbyID].room_data["players"]:
         if player!=userID:
             updateplayerlogs(lobbyID,player,formatcarddescription(f"->format:custom:bold:true###{playerusernames[userID]}->joined the lobby"))
@@ -182,9 +181,8 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
     if(len(all_rooms[lobbyID].room_data["players"])==1):
         all_rooms[lobbyID].room_data["leader"] = userID
     await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
-        "leader":all_rooms[lobbyID].room_data["leader"],
-        "ongoing":all_rooms[lobbyID].room_data["ongoing"],
-        "event":["update-player-list","update-player-gameboard","request-user-logs"] #
+        "event":["update-player-list"],
+        "data[0]":updateplayerlistjsonreturn(lobbyID)
     })
     try:
         while True:
@@ -206,16 +204,15 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
         try:
             all_rooms[lobbyID].room_data["leader"] = all_rooms[lobbyID].room_data["players"][0]
             await deliverMessageToClient(all_rooms[lobbyID].room_data["players"],{
-                "leader":all_rooms[lobbyID].room_data["leader"],
-                "ongoing":all_rooms[lobbyID].room_data["ongoing"],
-                "event":["update-player-list","request-user-logs"]
+                "event":["update-player-list"],
+                "data[0]":updateplayerlistjsonreturn(lobbyID)
             })
         except:
             if len(all_rooms[lobbyID].room_data["players"])==0:
                 all_rooms[lobbyID] = roomblueprint()
 def handlewebsocket_messages(lobby_ID,userID,message):
     content_split = message.split("=>")
-    if content_split[0] == "[loadabilities]":
+    if content_split[0] == "[loadabilitiestoserver]":
         all_abilities = content_split[1].split(" ")
         abilityarr = []
         for content in all_abilities:
@@ -224,7 +221,12 @@ def handlewebsocket_messages(lobby_ID,userID,message):
         return
 
 
-
+def updateplayerlistjsonreturn(lobbyID):
+    readystatejson = {}
+    for player in all_rooms[lobbyID].room_data["players"]:
+        all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"]
+    jsontoreturn = {"players":all_rooms[lobbyID].room_data["players"],"leader":all_rooms[lobbyID].room_data["leader"],"ongoing":all_rooms[lobbyID].room_data["ongoing"],"readystate":readystatejson}
+    return jsontoreturn
 
 @app.get("/api-game/gamestart/{lobby_ID}")
 async def thebeginning(lobby_ID: str):

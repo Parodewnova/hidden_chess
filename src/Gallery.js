@@ -4,9 +4,6 @@ import {serverurl,getstorage,setstorage,maxslots} from "./index.js"
 import "./css/Gallery.css"
 
 
-
-
-
 function Gallery(){
     var highlightindex = 0
 
@@ -26,6 +23,12 @@ function Gallery(){
     const [loghighlighter,setloghighlighter] = useState(null)
 
     const [cardseldiv,setcardseldiv] = useState(null)
+
+    //const [savedjsoncards,updatejsoncards] = useState({ 
+    //    itemname:"",
+    //    itemslot:""
+     //   
+   // })
 
     function formattextfunction(message){
         const defaultfontsize = 15
@@ -183,7 +186,6 @@ function Gallery(){
         }
         const div = document.getElementById("selitemindex")
         const highlightindex = parseInt(div.textContent)
-
         setstorage("itemslot"+highlightindex,itemname+"js789on_content"+JSON.stringify(itemjson))
         let value = highlightindex+1
         if(value>maxslots()-1){
@@ -249,6 +251,8 @@ function Gallery(){
             {/* <div style={{position:"absolute",bottom:"0px",left:"0px",width:"100%",height:"30px",border:"1px solid black"}}>
                 {cardsel}
             </div> */}
+            <button style = {{position:"absolute", scale:"1.2", margin:"10px"}} onClick={()=>{window.location.href="http://localhost:3000"}}> ⮜ Back </button>
+            {/* <button onClick={() => updatejsoncards} style = {{position:"absolute", width:"250px",height:"50px", margin:"15px", right:"0px", bottom:"0px", fontSize:"25px" }}> SAVE </button> */}
         </div>
     )
 }

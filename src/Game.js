@@ -11,6 +11,7 @@ function Game(){
 
     const [loaded,setloaded] = useState(true)
     const [miscpanel,setmiscpanel] = useState(null)
+    const [miscpanel2,setmiscpanel2] = useState(null)
     const [playersheader,setplayersheader] = useState(null)
 
     const [logscontent,setlogscontent] = useState([])
@@ -106,6 +107,11 @@ function Game(){
     }
 
     const [gameboardtile,setgameboardtile] = useState(null)
+
+    const [tilestohighlight,settilestohighlight] = useState({})
+    const [highlightedtile,sethighlightedtile] = useState([])
+    const [selectedspawnpoint,setselectedspawnpoint] = useState(null)
+
     const [rightclickedpoint,setrightclickedpoint] = useState([])
     const [transformstring,settransformstring] = useState("")
 
@@ -149,8 +155,9 @@ function Game(){
             setmiscpanel(<div className='errorModuleClass'>you don't belong here</div>)
             return
         }
-        setstorage("boardwidth",reply["width"])
-        setstorage("boardheight",reply["height"])
+        setstorage("board_x",reply["width"])
+        setstorage("board_y",reply["height"])
+        setstorage("tile_px",reply["size"])
         setloaded(true)
     }
 
@@ -213,17 +220,24 @@ function Game(){
         setstorage("transformy",ytransform_new)
         settransformstring("translate("+xtransform_new+"px,"+ytransform_new+"px)")
     }
-    function updategameboard(){
-        const inverse = true
+    function updategameboard(operation,inverse,visibletiles){
+        const boardx = getstorage("board_x")
+        const boardy = getstorage("board_y")
+        const tilepx = getstorage("tile_px")
+
+        const misc = {
+            "operation":operation
+        }
+
         var leftval = 0,topval = 0
         var totalwidth = 0,totalheight = 0
         const tiledivarr = []
         var xsub,ysub
-        for(var y =getstorage("boardheight")-1;y>-1;y--){
-            for(var x =0;x<getstorage("boardwidth");x++){
+        for(var y =boardy-1;y>-1;y--){
+            for(var x =0;x<boardx;x++){
                 if(inverse){
-                    xsub = getstorage("boardwidth")-1-x
-                    ysub = getstorage("boardheight")-1-y
+                    xsub = boardx-1-x
+                    ysub = boardy-1-y
                 }
                 else{
                     xsub = x
@@ -231,24 +245,26 @@ function Game(){
                 }
                 const tileid = xsub+"_"+ysub
                 tiledivarr.push(
-                    <div key={tileid} style={{position:"absolute",left:leftval,top:topval,width:"100px",height:"100px",border:"1px solid black"}}>
+                    <div key={tileid} style={{position:"absolute",left:leftval,top:topval,width:tilepx+"px",height:tilepx+"px"}}>
                         {/* <div style={{position:"relative"}}>
-
                         </div> */}
-                        {tileid}
                     </div>
                 )
+                if(operation=="starting"&&visibletiles.includes(tileid)){
+                    misc[tileid] = [leftval,topval]
+                }
                 leftval+=102
             }
             totalwidth = leftval
             leftval = 0
             topval+=102
         }
+        settilestohighlight(misc)
         totalheight = topval
         const gameboardmain = document.getElementById("gameboard")
         gameboardmain.style.width = totalwidth+"px"
         gameboardmain.style.height = totalheight+"px"
-        setstorage("transformx",-(totalwidth/4))
+        setstorage("transformx",-((totalwidth-550)/2))
         setstorage("transformy",-(totalheight-550))
 
         setstorage("maxXtransform",-(totalwidth-550))
@@ -261,25 +277,31 @@ function Game(){
         if(event=="update-player-list"){
             const player_arr = eventdata["players"]
             if(player_arr.length==1){
+                setgameboardtile(null)
+                setselectedspawnpoint(null)
                 setmiscpanel(
                     <div className="miscpanelcentered" style={{border:"2px solid black",fontSize:"20px",borderRadius:"15px",height:"50px",width:"250px",display:"flex",justifyContent:"center",alignItems:"center",fontWeight:"bold"}}>Waiting for players</div>
                 )
             }
             else if (player_arr.length==2){
                 socketRef.current.send("[loadgameboard]=>startinglocation")
-                // setmiscpanel(
-                //     <div className="miscpanelcentered" style={{border:"2px solid black",fontSize:"20px",borderRadius:"15px",height:"50px",width:"250px",display:"flex",justifyContent:"center",alignItems:"center",fontWeight:"bold"}}>Waiting for players</div>
-                // ) 
+                setmiscpanel(
+                    <div className="miscpanelcentered" style={{top:"13%",border:"2px solid black",fontSize:"20px",borderRadius:"15px",height:"50px",width:"250px",display:"flex",justifyContent:"center",alignItems:"center",fontWeight:"bold"}}>Select starting location</div>
+                ) 
             }
             else{
                 setmiscpanel(null)
             }
+            let readystatechecker = 0
             setplayersheader(
                 <div style={{width:"100%",height:"100%",display:"flex"}}>
                     {
                         player_arr.map((value,index)=>{
                             //const leader = eventdata["leader"]==value?"":""
                             const readystate = eventdata["readystate"][value]?"ready.png":"loading.gif"
+                            if(readystate=="ready.png"){
+                                readystatechecker+=1
+                            }
                             return(
                                 <div style={{width:"50%",height:"100%",display:"flex",justifyContent:index==0?"flex-start":"flex-end"}}>
                                     <div style={{width:"30px",height:"100%",display:index==0?"flex":"none",width:"30px",height:"100%",justifyContent:"center",alignContent:"center"}}>
@@ -297,6 +319,15 @@ function Game(){
                     }
                 </div>
             )
+            if(readystatechecker==2&&eventdata["leader"]==getstorage("userID")){// display start button
+                setmiscpanel(
+                    <div className="startgamebutton" onClick={{
+                        // SEND THE START GAME SIGNAL
+                    }}>
+                        Start Game
+                    </div>
+                )
+            }
             return
         }
         if(event=="update-player-logs"){
@@ -307,7 +338,7 @@ function Game(){
             setlogscontent(logsarr)
         }
         if(event=="user-gameboard-content"){
-            console.log(eventdata)
+            updategameboard(eventdata["operation"],eventdata["inverted"],eventdata["visibletiles"])
         }
     }
     useEffect(()=>{
@@ -344,6 +375,37 @@ function Game(){
         }};
     },[loaded])
     useEffect(()=>{
+        const highlight_arr = []
+        const tilepx = getstorage("tile_px")
+        Object.keys(tilestohighlight).forEach(key=>{
+            if(key!="operation"){
+                highlight_arr.push(
+                        <div id={key} style={{height:tilepx+"px",width:tilepx+"px",left:tilestohighlight[key][0],top:tilestohighlight[key][1]}} className="hightlighttilecss"
+                        onClick={(e)=>{
+                                if(tilestohighlight["operation"]=="starting"){
+                                    const tileid = e.currentTarget.id
+                                    settilestohighlight(content=>{
+                                        const newContent = {...content}
+                                        if(selectedspawnpoint!=null){
+                                            newContent[selectedspawnpoint.props.id] = [selectedspawnpoint.props.style.left,selectedspawnpoint.props.style.top]
+                                        }
+                                        delete newContent[tileid]
+                                        return newContent
+                                    })
+                                    setselectedspawnpoint(
+                                        <div id={key} style={{height:tilepx+"px",width:tilepx+"px",left:tilestohighlight[key][0],top:tilestohighlight[key][1]}} className="spawnpointselected"></div>
+                                    )
+                                    socketRef.current.send("[setplayerready]=>"+tileid)
+                                }
+                            }
+                        }>
+                        </div>
+                    )
+            }
+        })
+        sethighlightedtile(highlight_arr)
+    },[tilestohighlight])
+    useEffect(()=>{
         document.getElementById("gameboardframe").addEventListener('contextmenu', (e)=>{
             e.preventDefault()
         });
@@ -351,17 +413,21 @@ function Game(){
     },[])
     return(
         <div style={{width:"100%",height:"100vh"}}>
+            <div id="selectedstartingtileid" val="" style={{display:"none"}}></div>
             {miscpanel}
+            {miscpanel2}
             {loghighlighter}
             <div style={{display:loaded==false?"none":"block"}}>
                 <div id="playerheader" className="playerheadercss">{playersheader}</div>
-                <div id="logpanel" style={{position:"absolute",left:"5px",bottom:"5px",maxHeight:"350px",width:"250px",border:"1px solid black",background:"#efe5b2",borderRadius:"5px",display:"flex",flexDirection:"column-reverse",justifyContent:"end"}}>
+                <div id="logpanel" style={{position:"absolute",left:"5px",bottom:"5px",maxHeight:"350px",width:"250px",border:"1px solid black",background:"#efe5b2",borderRadius:"5px",display:"flex",flexDirection:"column",justifyContent:"end"}}>
                     {logscontent}
                 </div>
                 <div id="gameboardframe" className="miscpanelcentered" style={{width:"550px",height:"550px",overflow:"hidden",border:"2px solid black",borderRadius:"10px",display:gameboardtile!=null?"block":"none"}}  onMouseMove={handlemousemovement} onMouseDown={rightclickenable} onMouseUp={rightclickdisable} onMouseLeave={rightclickdisable}>
                     <div id="gameboard" style={{position:"relative",borderRadius:"5px",display:"flex",flexWrap:"wrap",padding:"3px",transform:transformstring}}>
                         <img src={serverurl+"api-game/get_image/Fogtile.png"} style={{width:"100%",height:"100%",transform:"translate(-3px,-3px)",objectFit:"contain"}}></img>
                         {gameboardtile}
+                        {highlightedtile}
+                        {selectedspawnpoint}
                     </div>
                 </div>
             </div>

@@ -27,6 +27,7 @@ playerusernames = {}
 
 max_logsize = 10
 gameboard_size = [7,7] # row,height
+tilesize_in_px = 100 # for client
 class roomblueprint():
     roomjson_blueprint = {
         "leader":"",
@@ -120,7 +121,7 @@ async def checkvalidvalues(model:checkvaluesmodel):
     if not userID in all_rooms[roomID].room_data["players"]:
         return JSONResponse(content={"error":"invalid player"})
     
-    return JSONResponse(content={"width":gameboard_size[0],"height":gameboard_size[1]})
+    return JSONResponse(content={"width":gameboard_size[0],"height":gameboard_size[1],"size":tilesize_in_px})
 def func3(userTile,structure,leader): #I means include that tile A means exclude
     coodinates = userTile.split("_")
     total_coods = []
@@ -158,7 +159,7 @@ def func3(userTile,structure,leader): #I means include that tile A means exclude
 async def deliverMessageToClient(clients,message_json):
     for client in clients:
         await registered_guests[client].send_json(message_json)
-async def updateandsendlogstoclient(lobby_ID,players,message): #player is an array and empty array == global log update
+async def updateandsendlogstoclient(lobby_ID,players,message): #players is an array and empty array == global log update
     if len(players) == 0:
         players = all_rooms[lobby_ID].room_data["players"]
     for client in players:
@@ -174,11 +175,8 @@ def updateplayerlistjsonreturn(lobbyID):
     readystatejson = {}
     PLAYERARR = all_rooms[lobbyID].room_data["players"]
     for player in PLAYERARR:
-        all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"]
-    fetchboard = False
-    if len(PLAYERARR) >1:
-        fetchboard = True
-    jsontoreturn = {"players":PLAYERARR,"leader":all_rooms[lobbyID].room_data["leader"],"ongoing":all_rooms[lobbyID].room_data["ongoing"],"readystate":readystatejson,"fetchboard":fetchboard}
+        readystatejson[player] = all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"]
+    jsontoreturn = {"players":PLAYERARR,"leader":all_rooms[lobbyID].room_data["leader"],"ongoing":all_rooms[lobbyID].room_data["ongoing"],"readystate":readystatejson}
     return jsontoreturn
 
 @app.websocket("/clientSOCKET/{userID}/{lobbyID}")
@@ -224,7 +222,6 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
             if len(all_rooms[lobbyID].room_data["players"])==0:
                 all_rooms[lobbyID] = roomblueprint()
 async def handlewebsocket_messages(lobby_ID,userID,message):
-    print(lobby_ID+"_"+userID)
     content_split = message.split("=>")
     if content_split[0] == "[loadabilitiestoserver]":
         all_abilities = content_split[1].split(" ")
@@ -245,13 +242,23 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
                 content.append(f"{x}_{y}")
             all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletiles"] = content
         
-        print(content)
         await deliverMessageToClient([userID],{
             "event":["user-gameboard-content"],
             "data[0]":{
+                "operation":"starting",
                 "visibletiles": content,
                 "inverted":inverted
             }
+        })
+        return
+    if content_split[0] == "[setplayerready]":
+        if(not all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"]):
+            await updateandsendlogstoclient(lobby_ID,[],formatcarddescription(f"->format:custom:bold:true###{userID}->is ready"))
+        all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"] = True
+        all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["tilelocation"] = content_split[1]
+        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+            "event":["update-player-list"],
+            "data[0]":updateplayerlistjsonreturn(lobby_ID)
         })
         return
 

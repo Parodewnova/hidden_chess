@@ -35,3 +35,40 @@
 
     user-select: none;
 }
+.startgamebutton{
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%,-50%);
+
+    background: whitesmoke;
+    border: 2px solid black;
+    border-radius: 15px;
+
+    font-weight: bold;
+    font-size: 25px;
+    padding: 10px;
+
+    cursor: pointer;
+    z-index: 1005;
+    user-select: none;
+}
+.startgamebutton:hover{
+    background: rgba(80, 74, 74, 0.3);
+}
+
+.hightlighttilecss{
+    position:absolute;
+    background:rgba(242,233,107,0.3);
+    border-radius: 15px;
+    z-index: 1000;
+}
+.hightlighttilecss:hover{
+    background:rgba(242,233,107,0.7);
+    cursor: pointer;
+}
+.spawnpointselected{
+    position:absolute;
+    background:rgba(4, 92, 99, 0.521);
+    border-radius: 15px;
+}

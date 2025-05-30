@@ -72,3 +72,12 @@
     background:rgba(4, 92, 99, 0.521);
     border-radius: 15px;
 }
+
+.fade-in {
+    opacity: 0;
+    animation: fadeIn 1.5s ease-in-out forwards;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

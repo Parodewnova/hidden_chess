@@ -2,9 +2,8 @@ from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse,Stre
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, File, UploadFile, Request, Response,status, WebSocket
 from pydantic import BaseModel
-import os
+import os,traceback,sys,random as rand,json
 
-import json,random
 
 test = True
 trigger_own_trap = False
@@ -32,6 +31,7 @@ class roomblueprint():
     roomjson_blueprint = {
         "leader":"",
         "ongoing":False,
+        "timer_state":{},
         "players":[],
         "max-players":2,
         "rounds":0,
@@ -84,6 +84,23 @@ class playerblueprint():
         import copy
         self.player_data = copy.deepcopy(self.playerstats_blueprint)
 
+idlength = 20
+alphastr = "abcdefghijklmnopqrstuvwxyz"
+numerstr = "1234567890"
+def generateID():
+    output = ""
+    for i in range(0,idlength):
+        e1 = rand.randint(1,2)
+        if e1 == 1:
+            output+=numerstr[rand.randint(0,(len(numerstr)-1))]
+            continue
+        toappend = alphastr[rand.randint(0,(len(alphastr)-1))]
+        e2 = rand.randint(1,4)
+        if e2%2==0:
+            toappend = toappend.upper()
+        output+=toappend
+    return output
+        
 
 registered_guests = {} #format => userID: websocket
 all_rooms = {}
@@ -176,8 +193,15 @@ def updateplayerlistjsonreturn(lobbyID):
     PLAYERARR = all_rooms[lobbyID].room_data["players"]
     for player in PLAYERARR:
         readystatejson[player] = all_rooms[lobbyID].room_data["playerstats"][player].player_data["ready"]
-    jsontoreturn = {"players":PLAYERARR,"leader":all_rooms[lobbyID].room_data["leader"],"ongoing":all_rooms[lobbyID].room_data["ongoing"],"readystate":readystatejson}
+    maxplayers = 2
+    if test:
+        maxplayers = 1
+    jsontoreturn = {"players":PLAYERARR,"leader":all_rooms[lobbyID].room_data["leader"],"ongoing":all_rooms[lobbyID].room_data["ongoing"],"readystate":readystatejson,"maxplayers":maxplayers}
     return jsontoreturn
+def fetchclientsideability(id):
+    split = id.split(":")
+    with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
+        return json.load(reader)["clientside"]
 
 @app.websocket("/clientSOCKET/{userID}/{lobbyID}")
 async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
@@ -204,7 +228,11 @@ async def websocket_endpoint(websocket: WebSocket, userID: str, lobbyID:str):
             # Send response back to client
             #await websocket.send_text(f"Echo: {data}")
     except Exception as e:
-        print(e)
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        tb = traceback.extract_tb(exc_traceback)[-1]  # Get last traceback entry
+        print(f"Error occurred on line {tb.lineno} in {tb.filename}")
+        print(f"Line content: {tb.line}")
+        print(f"Error: {exc_value}")
     finally:
         # delete from registered and the lobby
         del registered_guests[userID]
@@ -235,32 +263,115 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
         inverted = False
         if all_rooms[lobby_ID].room_data["leader"]!=userID:
             inverted = True
+        operation  = ""
         if loadtype == "startinglocation":
+            operation = "starting"
             y = 0 if not inverted else gameboard_size[1]-1
             content = []
             for x in range(0,gameboard_size[0]):
                 content.append(f"{x}_{y}")
-            all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletiles"] = content
-        
+            all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletiles"] = content 
+        else:
+            operation = "started"
+            content = {}
+            for tile in all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletiles"]:
+                filtercontent = dict(all_rooms[lobby_ID].room_data["gameboard"][tile])
+                #remove all invisible enemy traps
+                to_remove = [] 
+                for trap_ID in filtercontent["traps"]:
+                    trapcontent = filtercontent["traps"][trap_ID]
+                    trapcontent["source"] = getserversideabilityinfo(trapcontent["identifier"],"name")
+                    if trapcontent["setter"] == userID:
+                        continue
+                    if trapcontent["invisible"]:
+                        to_remove.append(trap_ID)
+                for remove in to_remove:
+                    del filtercontent["traps"][remove]
+                content[tile] = filtercontent
+            
+            playerabilities = all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["abilities"]
+            abilityjson = {}
+            for abilityid in playerabilities:
+                c2 = fetchclientsideability(abilityid[0])
+                abilityjson[abilityid[0]] = c2
+            await deliverMessageToClient([userID],{
+                "event":["load-user-abilities"],
+                "data[0]":abilityjson
+            })
         await deliverMessageToClient([userID],{
             "event":["user-gameboard-content"],
             "data[0]":{
-                "operation":"starting",
+                "operation":operation,
                 "visibletiles": content,
                 "inverted":inverted
             }
         })
         return
     if content_split[0] == "[setplayerready]":
-        if(not all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"]):
-            await updateandsendlogstoclient(lobby_ID,[],formatcarddescription(f"->format:custom:bold:true###{userID}->is ready"))
-        all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"] = True
+        setready = True
+        if content_split[1] == "false":
+            setready = False
+        else:
+            all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["tilelocation"] = content_split[1]
+        all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"] = setready
         all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["tilelocation"] = content_split[1]
         await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
             "event":["update-player-list"],
             "data[0]":updateplayerlistjsonreturn(lobby_ID)
         })
+
+        if not all_rooms[lobby_ID].room_data["ongoing"]: # condition for setting timer check
+            for player in all_rooms[lobby_ID].room_data["players"]:
+                if not all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]:
+                    return
+            all_rooms[lobby_ID].room_data["timer_state"] = {} #clear out previous timers
+            # begin timer
+            timerID = generateID()
+            timer_JSON = {
+                "current":1,
+                "set":[],
+                "cancel":False
+            }
+            all_rooms[lobby_ID].room_data["timer_state"][timerID] = timer_JSON #create new unique timer
+            await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+                "event":["timer-data"],
+                "data[0]":{
+                    "timer-id":timerID,
+                    "seconds":timer_JSON["current"]
+                }
+            })
         return
+    if content_split[0] == "[timer-running]": # game start timer
+        chk = content_split[1].split(":") #id + cancel check
+        timerID = chk[0]
+        cancel = chk[1]
+        try:
+            all_rooms[lobby_ID].room_data["timer_state"][timerID]["set"].append(userID)
+        except: # if fails means the timer is cleared which is expected
+            return
+        if cancel == "cancel":
+            all_rooms[lobby_ID].room_data["timer_state"][timerID]["cancel"] = True
+        if len(all_rooms[lobby_ID].room_data["timer_state"][timerID]["set"]) != len(all_rooms[lobby_ID].room_data["players"]):
+            return
+        if all_rooms[lobby_ID].room_data["timer_state"][timerID]["cancel"]:
+            return
+        all_rooms[lobby_ID].room_data["timer_state"][timerID]["set"] = [] # clear timer checker
+        all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]-=1
+        if(all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]==0):
+            for player in all_rooms[lobby_ID].room_data["players"]:
+                player_tile = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]
+                all_rooms[lobby_ID].room_data["playerstats"][player].player_data["visibletiles"] = [player_tile]
+                all_rooms[lobby_ID].room_data["gameboard"][player_tile]["players"].append(player)
+        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+            "event":["timer-data"],
+            "data[0]":{
+                "timer-id":timerID,
+                "seconds":all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]
+            }
+        })
+        return
+
+
 
 @app.get("/api-game/gamestart/{lobby_ID}")
 async def thebeginning(lobby_ID: str):
@@ -422,13 +533,6 @@ async def nextround(lobby_ID: str):
         "event":["reset-abilities-&-actions","update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard"]
     })
 
-def setRandomID():
-    max = 10
-    var = "abcdefghijklmnopqrstuvwxyz123456789"
-    toreturn = ""
-    for i in range(0,max):
-        toreturn+=var[random.randint(0,(len(var)-1))]
-    return toreturn
 def addItemToVisibleToken(tokenID,tile,player_visible_tokens,content_arr): #content_arr = [enemy,itemname,type]
     visibletokensformat = {
         "enemy":content_arr[0],

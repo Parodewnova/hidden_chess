@@ -39,13 +39,13 @@ async function joinserver(){
     //     return
     // }
     // check if user has their items
-    for(let check1=0;check1<maxslots();check1++){
-        const value = getstorage("itemslot"+check1)
-        if(value===null){
-            displayMessage("select your loadout first")
-            return
-        }
-    }
+    // for(let check1=0;check1<maxslots();check1++){
+    //     const value = getstorage("itemslot"+check1)
+    //     if(value===null){
+    //         displayMessage("select your loadout first")
+    //         return
+    //     }
+    // }
     const reply = await fetch(serverurl+"joinserverrequest/"+user_ID+"/"+user_input_value+"/"+username,{
         method:"GET"
     })

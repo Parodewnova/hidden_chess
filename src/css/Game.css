@@ -67,7 +67,7 @@
     background:rgba(242,233,107,0.7);
     cursor: pointer;
 }
-.spawnpointselected{
+.highlightselectedcss{
     position:absolute;
     background:rgba(4, 92, 99, 0.521);
     border-radius: 15px;
@@ -80,4 +80,56 @@
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+.abilitycardcss{
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+
+    border-radius: 15px;
+
+    background: whitesmoke;
+    transition: transform 0.2s ease-out;
+
+    cursor: pointer;
+    user-select: none;
+}
+
+
+.trapsetcss{
+    position: absolute;
+    background: white;
+    border-radius: 3px;
+    left: var(--start-x);
+    top: var(--start-y);
+    z-index: 4000;
+    
+    animation: move 0.4s ease-in-out forwards;
+}
+@keyframes move {
+    from {
+        top: var(--start-y);
+    }
+    to {
+        top: var(--end-y);
+    }
+}
+.statusappliedcss{
+    position: absolute;
+    background: rgba(242,233,107);
+    left: var(--center-x);
+    top: var(--center-y);
+    border-radius: 15px;
+    z-index: 4000;
+
+    animation: fadeaway 0.7s ease-in-out forwards;
+}
+@keyframes fadeaway {
+    from {
+        opacity: 0.9;
+    }
+    to {
+        opacity: 0
+    }
 }

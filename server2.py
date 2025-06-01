@@ -37,7 +37,10 @@ class roomblueprint():
         "rounds":0,
         "gameboard":{},
         "playerstats":{},
-        "operation":False
+        "operation":False,
+        "abilityusages":{},
+        "current_type":0,
+        "round_animations":{}
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -73,6 +76,7 @@ class playerblueprint():
         },
         "ready":False,
         "player_logs":[],
+        "player_animations":{},
         "visibletokens":{},
         "misc_tokenkeys":{
             "enemy_location":[] #token #tile
@@ -188,6 +192,14 @@ async def updateandsendlogstoclient(lobby_ID,players,message): #players is an ar
             "event":["update-player-logs"],
             "data[0]":loglist
         })
+def updateplayerlogs(lobby_ID,players,message): #players is an array and empty array == global log update
+    if len(players) == 0:
+        players = all_rooms[lobby_ID].room_data["players"]
+    for client in players:
+        loglist = all_rooms[lobby_ID].room_data["playerstats"][client].player_data["player_logs"]
+        loglist.append(message)
+        while len(loglist) > max_logsize:
+            loglist.pop(0)
 def updateplayerlistjsonreturn(lobbyID):
     readystatejson = {}
     PLAYERARR = all_rooms[lobbyID].room_data["players"]
@@ -293,6 +305,8 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
             abilityjson = {}
             for abilityid in playerabilities:
                 c2 = fetchclientsideability(abilityid[0])
+                c2["description"] = formatcarddescription(c2["description"])
+                c2["cardcooldown"] = abilityid[1]
                 abilityjson[abilityid[0]] = c2
             await deliverMessageToClient([userID],{
                 "event":["load-user-abilities"],
@@ -311,19 +325,22 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
         setready = True
         if content_split[1] == "false":
             setready = False
+        elif content_split[1] == "setability":
+            abilityjson = json.loads(content_split[2])
+            all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["currentusage"] = abilityjson
+        elif content_split[1] == "animationready":
+            print("ready")
         else:
             all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["tilelocation"] = content_split[1]
         all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"] = setready
-        all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["tilelocation"] = content_split[1]
         await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
             "event":["update-player-list"],
             "data[0]":updateplayerlistjsonreturn(lobby_ID)
         })
-
+        for player in all_rooms[lobby_ID].room_data["players"]: # check if both players are ready
+            if not all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]:
+                return
         if not all_rooms[lobby_ID].room_data["ongoing"]: # condition for setting timer check
-            for player in all_rooms[lobby_ID].room_data["players"]:
-                if not all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]:
-                    return
             all_rooms[lobby_ID].room_data["timer_state"] = {} #clear out previous timers
             # begin timer
             timerID = generateID()
@@ -340,6 +357,12 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
                     "seconds":timer_JSON["current"]
                 }
             })
+            return
+        if all_rooms[lobby_ID].room_data["ongoing"]: #begin round animation
+            if(content_split[1]) == "animationready":
+                await handleanimations(lobby_ID)
+            else:
+                await round_operations(lobby_ID)
         return
     if content_split[0] == "[timer-running]": # game start timer
         chk = content_split[1].split(":") #id + cancel check
@@ -357,20 +380,88 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
             return
         all_rooms[lobby_ID].room_data["timer_state"][timerID]["set"] = [] # clear timer checker
         all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]-=1
+        eventlist = ["timer-data"]
         if(all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]==0):
-            for player in all_rooms[lobby_ID].room_data["players"]:
+            eventlist.append("update-player-list")
+            for player in all_rooms[lobby_ID].room_data["players"]: # game start == initialise game start here
                 player_tile = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]
                 all_rooms[lobby_ID].room_data["playerstats"][player].player_data["visibletiles"] = [player_tile]
+                all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"] = False
+                all_rooms[lobby_ID].room_data["ongoing"] = True
                 all_rooms[lobby_ID].room_data["gameboard"][player_tile]["players"].append(player)
         await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
-            "event":["timer-data"],
+            "event":eventlist,
             "data[0]":{
                 "timer-id":timerID,
                 "seconds":all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]
-            }
+            },
+            "data[1]":updateplayerlistjsonreturn(lobby_ID)
+        })
+        return
+    if content_split[0] == "[request-status-update]": # send updates status to player
+        statusjson = all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["status"]
+        await deliverMessageToClient([userID],{
+            "event":["load-user-status"],
+            "data[0]":statusjson
         })
         return
 
+
+all_types = ['utl',"trp","mov",'atk']
+async def round_operations(lobbyID):
+    roundusage = {}
+    for type in all_types:
+        roundusage[type] = []
+    for userID in all_rooms[lobbyID].room_data["players"]:
+        ability_json= all_rooms[lobbyID].room_data["playerstats"][userID].player_data["currentusage"]
+        # const abilityjson = { example json
+        #     "tileselected":key,
+        #     "abilityselected":abilityselected
+        # }
+        roundusage[ability_json["abilityselected"].split(":")[0]].append({
+            "user":userID,
+            "tile-touched":ability_json["tileselected"],
+            "identifier":ability_json["abilityselected"]
+        })
+    
+    while len(roundusage[all_types[all_rooms[lobbyID].room_data["current_type"]]]) == 0:
+        all_rooms[lobbyID].room_data["current_type"]+=1
+    type = all_types[all_rooms[lobbyID].room_data["current_type"]]
+    for content in roundusage[type]:
+        if type == "utl":
+            utl_action(lobbyID,content)
+            continue
+        if type == "mov":
+            mov_action(lobbyID,content["user"],content["tile-touched"])
+            continue
+        if type == "atk":
+            atk_action(lobbyID,content)
+            continue
+        if type == "trp":
+            set_trap_action(lobbyID,content)
+            continue
+    await handleanimations(lobbyID)
+
+async def handleanimations(lobbyID):
+    # animations = trap-set, player-moved, status-applied
+    for userID in all_rooms[lobbyID].room_data["players"]:
+        all_rooms[lobbyID].room_data["playerstats"][userID].player_data["ready"] = False
+        tosend = []
+        if userID in all_rooms[lobbyID].room_data["round_animations"].keys():
+            tosend = all_rooms[lobbyID].room_data["round_animations"][userID]
+        for content in tosend: # send logs
+            for txt in content["log_to_add"]:
+                updateplayerlogs(lobbyID,[userID],txt)
+        await deliverMessageToClient([userID],{
+            "event":["user-animations"],
+            "data[0]":tosend
+        })
+    # animationjson = {
+    #     "sfx":"",
+    #     "animation":"trap-set",
+    #     "tile":json_["tile-touched"],
+    #     "log_to_add":[f"|stylecolor:#71706E###{ability_json['name']}|styletrap set"]
+    # }
 
 
 @app.get("/api-game/gamestart/{lobby_ID}")
@@ -575,7 +666,12 @@ def update_playerdamagelogs(currentRound,player_data_json,damagelogjson):
     arr.append(damagelogjson)
     player_data_json["damaged_logs"][currentRound] = arr
     
-
+def updateanimationsjson(lobbyID,setter,animation):
+    animations = []
+    if setter in all_rooms[lobbyID].room_data["round_animations"].keys():
+        animations = all_rooms[lobbyID].room_data["round_animations"][setter]
+    animations.append(animation)
+    all_rooms[lobbyID].room_data["round_animations"][setter] = animations
 
 all_types = ['utl',"trp","mov",'atk']
 def get_opposition(players,currentplayer): # =============================================================================
@@ -590,13 +686,20 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
         "identifier":json_["identifier"]
     }
     for tile_touched in json_["tile-touched"]:
-        trapID = setRandomID()
+        trapID = generateID()
         #all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["traps"].append(trapID)
         ability_json = getserversideabilityinfo(json_["identifier"],"")
         addItemToVisibleToken(trapID,tile_touched,all_rooms[lobbyID].room_data["playerstats"][json_["user"]].player_data["visibletokens"],[False,ability_json["name"],"traps"])
-        updateplayerlogs(lobbyID,json_["user"],f"|stylecolor:#71706E###{ability_json['name']}|styletrap set")
         trap_jsondata["invisible"] = ability_json["invisible"]
         all_rooms[lobbyID].room_data["gameboard"][tile_touched]["traps"][trapID] = trap_jsondata
+
+    animationjson = {
+        "sfx":"",
+        "animation":"trap-set",
+        "tile":json_["tile-touched"],
+        "log_to_add":[f"|stylecolor:#71706E###{ability_json['name']}|styletrap set"]
+    }
+    updateanimationsjson(lobbyID,json_["user"],animationjson)
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
@@ -630,7 +733,7 @@ def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     for removaltrap in setforRemoval:
         del tiledata[removaltrap]
 
-def moving_action(lobbyID,user,tile_to_move_to):
+def mov_action(lobbyID,user,tile_to_move_to):
     tile_to_move_to = tile_to_move_to[0]
     player_data = all_rooms[lobbyID].room_data["playerstats"][user].player_data
     player_data["visibletiles"].remove(player_data["tilelocation"])
@@ -638,6 +741,16 @@ def moving_action(lobbyID,user,tile_to_move_to):
     player_data["tilelocation"] = tile_to_move_to
     player_data["visibletiles"].append(player_data["tilelocation"])
     all_rooms[lobbyID].room_data["gameboard"][player_data["tilelocation"]]["players"].append(user)
+
+    
+    animationjson = {
+        "sfx":"",
+        "animation":"player-moved",
+        "tile":[tile_to_move_to],
+        "log_to_add":[]
+    }
+    updateanimationsjson(lobbyID,user,animationjson)
+    
     trap_stepped_check(lobbyID,user,tile_to_move_to)
 def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
     touched = False
@@ -661,7 +774,7 @@ def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
                 for effect in ability_json['effect']:
                     statusapplied+=f"{effect}&"
                 statusapplied = statusapplied[:-1]+"->"
-            updateplayerlogs(lobbyID,enemy,formatcarddescription(f"hit by ->format:itemname###{ability_json['name']}->{logtxt}{('and inflicted with '+statusapplied) if inflicted else ''}"))
+            updateandsendlogstoclient(lobbyID,enemy,formatcarddescription(f"hit by ->format:itemname###{ability_json['name']}->{logtxt}{('and inflicted with '+statusapplied) if inflicted else ''}"))
             logtxt = (f"for->format:damagetypephysical###{ability_json['damage']} damage->") if damage else ""
             updateplayerlogs(lobbyID,json_["user"],formatcarddescription(f"hit->format:custom:bold:true###{playerusernames[enemy]}->{logtxt}using->format:itemname###{ability_json['name']}->{(', inflicted '+statusapplied) if inflicted else ''}"))
             update_playerdamagelogs(all_rooms[lobbyID].room_data["rounds"],all_rooms[lobbyID].room_data["playerstats"][enemy].player_data,{"damage":ability_json["damage"],"cause":ability_json["name"],"cause-type":"attack","cause-entity":json_["user"]})
@@ -675,6 +788,7 @@ def utl_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
 
     if ability_json["name"] == "scout" or ability_json["name"] =="aerial-scan":
         applyeffect(lobbyID,json_["identifier"],json_["user"],json_["tile-touched"])
+        
         return
     # for tile_touched in json_["tile-touched"]:
     #     boarddata = all_rooms[lobbyID].room_data["gameboard"][tile_touched]["players"]
@@ -756,6 +870,7 @@ def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is
     split =  abilityidentifier.split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]
+        effectstr = ""
         for effect in ability_data["effect"]:
             effect_json = {
                 "data":[],
@@ -780,6 +895,14 @@ def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is
                     json_toappend["tiles"] = str(tilesAffected).replace("'","")
                 effect_json["data"].append(json_toappend)
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
+            effectstr+=f"format:status###{effect}->"
+        animationjson = {
+            "sfx":"",
+            "animation":"status-applied",
+            "tile":[all_rooms[lobbyID].room_data["playerstats"][player].player_data["tilelocation"]],
+            "log_to_add":[formatcarddescription(effectstr+"applied")]
+        }
+        updateanimationsjson(lobbyID,player,animationjson)
 def applySpecialeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim this is for status that affect tiles tilesAffected is arr
     split =  abilityidentifier.split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
@@ -796,146 +919,6 @@ def applySpecialeffect(lobbyID,abilityidentifier,player,tilesAffected): #player 
                 "source":ability_data["name"]
             })
             all_rooms[lobbyID].room_data["playerstats"][player].player_data["status"][effect] = effect_json
-
-
-    
-
-@app.post("/api-game/userready/{lobby_ID}")
-async def funcapi1(lobby_ID: str, request:Request):
-    raw_body = await request.body()  # Get raw bytes
-    body_json = json.loads(raw_body.decode())
-
-    user_ID = body_json["userID"]
-    mode = body_json["mode"]
-    readystate = body_json["readystate"]
-
-    allplayers = all_rooms[lobby_ID].room_data["players"]
-    if not test:
-        if(len(allplayers)!=2): #SEXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-            return
-    begin_game = True
-    for player in allplayers:
-        if(player==user_ID):
-            all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["ready"] = readystate
-        ready = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]
-        if not ready:
-            begin_game = False
-        if(mode=="initialise"): # set player starting tile
-            all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["tilelocation"] = body_json["tile"]
-        if(mode=="useraction"):
-             all_rooms[lobby_ID].room_data["playerstats"][user_ID].player_data["currentusage"] = body_json["ability"]
-
-    if not all_rooms[lobby_ID].room_data["ongoing"]: # not ongoing means starting game
-        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
-            "leader":all_rooms[lobby_ID].room_data["leader"],
-            "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-            "readytobegin":begin_game,
-            "event":["toggle-start-button"]
-        })
-        return
-    if not begin_game:
-        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
-                "leader":all_rooms[lobby_ID].room_data["leader"],
-                "ongoing":all_rooms[lobby_ID].room_data["ongoing"],
-                "event":["update-player-list"]
-        })
-        return
-    #only one code will make it past here---------------
-    # ongoing means user playing their rounds
-    #event_arr = ["update-player-list"]
-    game_operations(lobby_ID)
-    await nextround(lobby_ID)
-@app.get("/api-game/fetchplayerlist/{lobby_id}")
-async def funcapi2(lobby_id:str):
-    json_data = {
-        "players":all_rooms[lobby_id].room_data["players"]
-    }
-    for player in json_data["players"]:
-        playerjson = {
-            "username": playerusernames[player],
-            "readystate":all_rooms[lobby_id].room_data["playerstats"][player].player_data["ready"]
-        }
-        json_data[player] = playerjson 
-    return JSONResponse(content=json_data,status_code=200)
-@app.get("/api-game/fetchgameboard/{lobby_id}/{user_ID}")
-async def funcapi3(lobby_id:str,user_ID:str):
-    player_data = all_rooms[lobby_id].room_data["playerstats"][user_ID].player_data
-    to_add = []
-    if(len(player_data["visibletiles"])==0):
-        first_index = 0
-        min = 0; max = gameboard_size[0]
-        if(user_ID!=all_rooms[lobby_id].room_data["leader"]):
-            first_index = gameboard_size[1]-1
-        for i in range(min,max):
-            to_add.append(f'{i}_{first_index}')
-    else:
-        to_add = player_data["visibletiles"]
-    content = {}
-    for item in to_add:
-        filtercontent = dict(all_rooms[lobby_id].room_data["gameboard"][item])
-        #remove all invisible enemy traps
-        to_remove = [] 
-        for trap_ID in filtercontent["traps"]:
-            trapcontent = filtercontent["traps"][trap_ID]
-            trapcontent["source"] = getserversideabilityinfo(trapcontent["identifier"],"name")
-            if trapcontent["setter"] == user_ID:
-                continue
-            if trapcontent["invisible"]:
-                to_remove.append(trap_ID)
-        for remove in to_remove:
-            del filtercontent["traps"][remove]
-        content[item] = filtercontent
-    #content[user_ID] = player_data["tilelocation"]
-    return JSONResponse(content=content,status_code=200)
-@app.get("/api-game/displayabilitygui/{lobby_id}/{userID}")
-async def funcapi4(lobby_id:str,userID:str):
-    abilityjson = {}
-    ability_identifyers = all_rooms[lobby_id].room_data["playerstats"][userID].player_data["abilities"] #[0] identifier [1] cooldown
-    for code in ability_identifyers:
-        type = code[0].split(":")[0]
-        id = code[0].split(":")[1]
-        with open("./abilities/"+type+"/"+id+".json","r") as reader:
-            json_loaded = json.load(reader)["clientside"]
-            sub_json = {
-                "currentcooldown":code[1]
-            }
-            for key in json_loaded:
-                v = json_loaded[key]
-                if key == "description":
-                    v = formatcarddescription(json_loaded[key])
-                sub_json[key] = v
-            abilityjson[json_loaded["name"]] = sub_json
-            # abilityjson[json_loaded["name"]] = {
-            #     "identifier":json_loaded["identifier"],
-            #     "description":json_loaded["description"],
-            #     "tileformat":json_loaded["tileformat"],
-            #     "cooldown":json_loaded["cooldown"],
-            #     "damage":json_loaded["damage"],
-            #     "currentcooldown":code[1]
-            # }
-    return JSONResponse(content=abilityjson,status_code=200)
-@app.get("/api-game/get_image/{file_id}")
-async def funcapi5(file_id: str):
-    image_path = "./gallery-assests/"+(file_id.replace("|","/"))
-    return FileResponse(image_path,status_code=200)
-@app.get("/api-game/fetchplayerstats/{lobby_id}/{user_id}/{component}")
-async def funcapi6(lobby_id:str,user_id:str,component:str):
-    playerdata = all_rooms[lobby_id].room_data["playerstats"][user_id].player_data
-    #print(playerdata)
-    return JSONResponse(content=playerdata[component],status_code=200)
-@app.get("/api-game/fetchgamesettings")
-async def funcapi7():
-    return JSONResponse(content={"board-size":gameboard_size},status_code=200)
-@app.get("/api-game/fetchgamesounds")
-async def funcapi8():
-    return JSONResponse(content={"content":os.listdir("./gallery-mp3")},status_code=200)
-@app.get("/api-game/fetchgamesounds/{sound}")
-async def funcapi9(sound:str):
-    return FileResponse(
-        path="./gallery-mp3/"+sound+".mp3",
-        media_type="audio/mpeg",
-    )
-
 
 
 
@@ -987,21 +970,3 @@ def formatcarddescription(description):
     return new_description.strip()
 
 
-
-
-@app.get("/api-gallery/gallerysite/{context}")
-async def funcapi1(context:str):
-    content_requested = context.split("-")[1]
-    if content_requested == "ability_headers":
-        return JSONResponse(content=os.listdir("./abilities"),status_code=200)
-    if content_requested.split("=")[0] == "headeritems":
-        allcontent = os.listdir(f"./abilities/{content_requested.split('=')[1]}")
-        item_dict = {}
-        for name in allcontent:
-            with open(f"./abilities/{content_requested.split('=')[1]}/{name}","r") as reader:
-                content_json = json.load(reader)["clientside"]
-                content_json["description"] = formatcarddescription(content_json["description"])
-                item_dict[name] = content_json
-        return JSONResponse(content=item_dict,status_code=200)
-    
- 

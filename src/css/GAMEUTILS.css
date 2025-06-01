@@ -1,0 +1,18 @@
+.TRAPSETCSS{
+    position: absolute;
+    background: white;
+    border-radius: 3px;
+    left: var(--start-x);
+    top: var(--start-y);
+    z-index: 4000;
+    
+    animation: move 0.4s ease-in-out forwards;
+}
+@keyframes move {
+    from {
+        top: var(--start-y);
+    }
+    to {
+        top: var(--end-y);
+    }
+}

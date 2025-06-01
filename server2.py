@@ -624,6 +624,10 @@ async def nextround(lobby_ID: str):
         "event":["reset-abilities-&-actions","update-player-list","send-ability-gui","request-user-logs","update-user-statuses","update-user-tokens","update-player-gameboard"]
     })
 
+@app.get("/api-game/get_image/{content}")
+async def fetchAssests(content:str):
+    
+
 def addItemToVisibleToken(tokenID,tile,player_visible_tokens,content_arr): #content_arr = [enemy,itemname,type]
     visibletokensformat = {
         "enemy":content_arr[0],

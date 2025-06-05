@@ -106,7 +106,6 @@ function Game(){
         return(<div style={{margin:"3px",maxWidth:"100%",display:"flex",flexWrap:"wrap",alignContent:"center",justifyContent:!center?"flex-start":"center"}}>{text_arr}</div>)
     }
 
-    const [playertile,setplayertile] = useState("")
     const [isLeader,setisLeader] = useState(null)
     const lockplayerturn = useRef(false);
     const [playerstatus,setplayerstatus] = useState([])
@@ -114,7 +113,10 @@ function Game(){
     const [gameboardtile,setgameboardtile] = useState(null)
     const gameboardtiledata2 = useRef(null)
     const [gameboardtiledata,setgameboardtiledata] = useState(null) //json for tile id left and top values for easy access
+    const animationsToPlay = useRef(null)
     const [animationpanels,setanimationpanels] = useState(null)
+    const [visibletiledata,setvisibletiledata] = useState(null)
+    const [visibletokensdata,setvisibletokensdata] = useState(null)
     
     const [abilitycardsdata,setabilitycardsdata] = useState(null)
     const [abilitycardsgui,setabilitycardsgui] = useState(null)
@@ -149,6 +151,7 @@ function Game(){
                 }
                 return all
             })
+            animationdone()
         }}
         />
     );
@@ -174,6 +177,7 @@ function Game(){
                 }
                 return all
             })
+            animationdone()
         }}
         />
     );
@@ -347,6 +351,8 @@ function Game(){
                 "operation":eventdata["operation"]
             }
 
+            setvisibletiledata(eventdata["visibletiles"])
+            setvisibletokensdata(eventdata["visibletokens"])
             var leftval = 0,topval = 0
             var totalwidth = 0,totalheight = 0
             const tiledivarr = []
@@ -370,7 +376,7 @@ function Game(){
                             if(key=="players"){
                                 for(const player of value){
                                     if(player===getstorage("userID")){
-                                        setplayertile(tileid)
+                                        document.getElementById("playertilediv").textContent = tileid
                                         iconlist.push("api-game/get_image/icon-assests|players.png")
                                     }
                                     else{
@@ -460,27 +466,8 @@ function Game(){
             }
             setabilityselected(null)
             setselectedhighlght(null)
-            const toAnimate = []
-            const tilepx = getstorage("tile_px")
-            console.log(eventdata)
-            for(const animation of eventdata){
-                for(const tile of animation.tile){
-                    const left_top = gameboardtiledata2.current[tile]
-                    if (animation.animation == "trap-set"){
-                        const end = [left_top[0]+tilepx/2,left_top[1]+tilepx/2]
-                        const start = [end[0],end[1]-600]
-                        toAnimate.push(
-                            <TrapSet start={start} end={end} toLogArr={animation.log_to_add}/>
-                        )
-                    }
-                    if (animation.animation == "status-applied"){
-                        toAnimate.push(
-                            <StatusApplied location={[left_top[0]+tilepx/2,left_top[1]+tilepx/2]} toLogArr={animation.log_to_add}/>
-                        )
-                    }
-                }
-            }
-            setanimationpanels(toAnimate)
+            animationsToPlay.current = eventdata
+            playanimations()
             return
         }
         if(event=="load-user-status"){
@@ -520,10 +507,40 @@ function Game(){
             return
         }
     }
-
+    function playanimations(){
+        const toAnimate = []
+        const tilepx = getstorage("tile_px")
+        //const animation = animationsToPlay.current[0]
+        for (const animation of animationsToPlay.current){
+            for(const tile of animation.tile){
+                const left_top = gameboardtiledata2.current[tile]
+                if (animation.animation == "trap-set"){
+                    const end = [left_top[0]+tilepx/2,left_top[1]+tilepx/2]
+                    const start = [end[0],end[1]-600]
+                    toAnimate.push(
+                        <TrapSet start={start} end={end} toLogArr={animation.log_to_add}/>
+                    )
+                }
+                if (animation.animation == "status-applied"){
+                    toAnimate.push(
+                        <StatusApplied location={[left_top[0]+tilepx/2,left_top[1]+tilepx/2]} toLogArr={animation.log_to_add}/>
+                    )
+                }
+            }
+        }
+        setanimationpanels(toAnimate)
+    }
+    function animationdone(){
+        // if(animationsToPlay.current.length===0){
+        //     console.log("DONE")
+        //     return
+        // }
+        // animationsToPlay.current.pop(0)
+        // playanimations()
+    }
 
     function abilityselectedFunction(abilityFormat){
-        const val = convertTileFormat(playertile,abilityFormat,isLeader,[getstorage("board_x"),getstorage("board_y")])
+        const val = convertTileFormat(document.getElementById("playertilediv").textContent,abilityFormat,isLeader,[getstorage("board_x"),getstorage("board_y")])
         const tohighlight = {"operation":"ability-selection"}
         for(const div of val){
             tohighlight[div] = gameboardtiledata[div]
@@ -679,6 +696,7 @@ function Game(){
                 {abilitycardsgui}
             </div>
             <div style={{display:loaded==false?"none":"block"}}>
+                <div id="playertilediv" style={{display:"none"}}></div>
                 <div id='status-list' style={{maxWidth:"100%",display:"flex",flexWrap:"wrap"}}>{playerstatus}</div>
                 <div id="playerheader" className="playerheadercss">{playersheader}</div>
                 <div id="logpanel" style={{position:"absolute",left:"5px",bottom:"5px",maxHeight:"350px",width:"250px",border:"1px solid black",background:"#efe5b2",borderRadius:"5px",display:"flex",flexDirection:"column",justifyContent:"end"}}>

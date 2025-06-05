@@ -61,6 +61,7 @@ export function settiledisplay(parentdiv,tileid){
 }
 
 export function convertTileFormat(cood,structure,leader,maxBoardSize){ // cood is 2_0 3_3 in str format, maxBoardSize is an [] with 0 = x max and 1 = y max
+    //console.log(cood+"_"+structure+"_"+leader+"_"+maxBoardSize)
     const coodinates = cood.split("_")
     const total_coods = []
     const arr = structure.split("-")

@@ -39,8 +39,7 @@ class roomblueprint():
         "playerstats":{},
         "operation":False,
         "abilityusages":{},
-        "current_type":0,
-        "round_animations":{}
+        "round_animations":[]
     }
     def __init__(self):  # Default size or pass it in
         # Create a deep copy of the template for this instance
@@ -317,6 +316,7 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
             "data[0]":{
                 "operation":operation,
                 "visibletiles": content,
+                "visibletokens": all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletokens"],
                 "inverted":inverted
             }
         })
@@ -424,31 +424,27 @@ async def round_operations(lobbyID):
             "identifier":ability_json["abilityselected"]
         })
     
-    while len(roundusage[all_types[all_rooms[lobbyID].room_data["current_type"]]]) == 0:
-        all_rooms[lobbyID].room_data["current_type"]+=1
-    type = all_types[all_rooms[lobbyID].room_data["current_type"]]
-    for content in roundusage[type]:
-        if type == "utl":
-            utl_action(lobbyID,content)
-            continue
-        if type == "mov":
-            mov_action(lobbyID,content["user"],content["tile-touched"])
-            continue
-        if type == "atk":
-            atk_action(lobbyID,content)
-            continue
-        if type == "trp":
-            set_trap_action(lobbyID,content)
-            continue
+    for type in all_types:
+        for content in roundusage[type]:
+            if type == "utl":
+                utl_action(lobbyID,content)
+                continue
+            if type == "mov":
+                mov_action(lobbyID,content["user"],content["tile-touched"])
+                continue
+            if type == "atk":
+                atk_action(lobbyID,content)
+                continue
+            if type == "trp":
+                set_trap_action(lobbyID,content)
+                continue
     await handleanimations(lobbyID)
 
 async def handleanimations(lobbyID):
     # animations = trap-set, player-moved, status-applied
     for userID in all_rooms[lobbyID].room_data["players"]:
         all_rooms[lobbyID].room_data["playerstats"][userID].player_data["ready"] = False
-        tosend = []
-        if userID in all_rooms[lobbyID].room_data["round_animations"].keys():
-            tosend = all_rooms[lobbyID].room_data["round_animations"][userID]
+        tosend = all_rooms[lobbyID].room_data["round_animations"][0][userID]
         for content in tosend: # send logs
             for txt in content["log_to_add"]:
                 updateplayerlogs(lobbyID,[userID],txt)
@@ -626,7 +622,10 @@ async def nextround(lobby_ID: str):
 
 @app.get("/api-game/get_image/{content}")
 async def fetchAssests(content:str):
-    
+    path = "./gallery-assests/"+content.replace("|","/")
+    if not os.path.exists(path):
+        return JSONResponse(content={},status_code=404)
+    return FileResponse(path)
 
 def addItemToVisibleToken(tokenID,tile,player_visible_tokens,content_arr): #content_arr = [enemy,itemname,type]
     visibletokensformat = {
@@ -669,13 +668,10 @@ def update_playerdamagelogs(currentRound,player_data_json,damagelogjson):
         arr = player_data_json["damaged_logs"][currentRound]
     arr.append(damagelogjson)
     player_data_json["damaged_logs"][currentRound] = arr
-    
-def updateanimationsjson(lobbyID,setter,animation):
-    animations = []
-    if setter in all_rooms[lobbyID].room_data["round_animations"].keys():
-        animations = all_rooms[lobbyID].room_data["round_animations"][setter]
-    animations.append(animation)
-    all_rooms[lobbyID].room_data["round_animations"][setter] = animations
+
+def updateanimationsjson(lobbyID,animation): # append is true or false,if false = create a new array, true = append to previous animation array
+    all_rooms[lobbyID].room_data["round_animations"].append(animation)
+
 
 all_types = ['utl',"trp","mov",'atk']
 def get_opposition(players,currentplayer): # =============================================================================
@@ -703,7 +699,7 @@ def set_trap_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 't
         "tile":json_["tile-touched"],
         "log_to_add":[f"|stylecolor:#71706E###{ability_json['name']}|styletrap set"]
     }
-    updateanimationsjson(lobbyID,json_["user"],animationjson)
+    updateanimationsjson(lobbyID,{json_["user"]:[animationjson]})
 def trap_stepped_check(lobbyID,player,tile): #player here is the victim
     tiledata = all_rooms[lobbyID].room_data["gameboard"][tile]["traps"]
     setforRemoval = []
@@ -753,7 +749,7 @@ def mov_action(lobbyID,user,tile_to_move_to):
         "tile":[tile_to_move_to],
         "log_to_add":[]
     }
-    updateanimationsjson(lobbyID,user,animationjson)
+    updateanimationsjson(lobbyID,{user:[animationjson]})
     
     trap_stepped_check(lobbyID,user,tile_to_move_to)
 def atk_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-touched': ['2_2'], 'user': 'ltcDkmCla'}
@@ -791,8 +787,7 @@ def utl_action(lobbyID,json_): #example json = {'identifier': 'trp:001', 'tile-t
     damage = True if ability_json["damage"]!=0 else False
 
     if ability_json["name"] == "scout" or ability_json["name"] =="aerial-scan":
-        applyeffect(lobbyID,json_["identifier"],json_["user"],json_["tile-touched"])
-        
+        updateanimationsjson(lobbyID,{json_["user"]:[applyeffect(lobbyID,json_["identifier"],json_["user"],json_["tile-touched"])]})
         return
     # for tile_touched in json_["tile-touched"]:
     #     boarddata = all_rooms[lobbyID].room_data["gameboard"][tile_touched]["players"]
@@ -870,7 +865,7 @@ def game_operations(lobbyID):
         for player in allplayers:
             playertile = all_rooms[lobbyID].room_data["playerstats"][player].player_data["tilelocation"]
             trap_stepped_check(lobbyID,player,playertile)
-def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim
+def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim 
     split =  abilityidentifier.split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:
         ability_data = json.load(reader)["serverside"]
@@ -906,7 +901,7 @@ def applyeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is
             "tile":[all_rooms[lobbyID].room_data["playerstats"][player].player_data["tilelocation"]],
             "log_to_add":[formatcarddescription(effectstr+"applied")]
         }
-        updateanimationsjson(lobbyID,player,animationjson)
+        return animationjson
 def applySpecialeffect(lobbyID,abilityidentifier,player,tilesAffected): #player here is the victim this is for status that affect tiles tilesAffected is arr
     split =  abilityidentifier.split(":")
     with open("./abilities/"+split[0]+"/"+split[1]+".json","r") as reader:

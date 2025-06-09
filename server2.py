@@ -5,7 +5,7 @@ from pydantic import BaseModel
 import os,traceback,sys,random as rand,json
 
 
-test = True
+test = False
 trigger_own_trap = False
 
 app = FastAPI()
@@ -328,16 +328,20 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
         elif content_split[1] == "setability":
             abilityjson = json.loads(content_split[2])
             all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["currentusage"] = abilityjson
-        elif content_split[1] == "animationready":
-            print("ready")
+        elif content_split[1] == "animationready": #done with animation 
+            #do nothing
+            a = 2
         else:
             all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["tilelocation"] = content_split[1]
         all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["ready"] = setready
-        await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
-            "event":["update-player-list"],
-            "data[0]":updateplayerlistjsonreturn(lobby_ID)
-        })
+        if not content_split[1] == "animationready":
+            await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+                "event":["update-player-list"],
+                "data[0]":updateplayerlistjsonreturn(lobby_ID)
+            })
+        
         for player in all_rooms[lobby_ID].room_data["players"]: # check if both players are ready
+            #print(f"{player} {all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]}")
             if not all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"]:
                 return
         if not all_rooms[lobby_ID].room_data["ongoing"]: # condition for setting timer check
@@ -360,9 +364,12 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
             return
         if all_rooms[lobby_ID].room_data["ongoing"]: #begin round animation
             if(content_split[1]) == "animationready":
-                await handleanimations(lobby_ID)
-            else:
-                await round_operations(lobby_ID)
+                if len(all_rooms[lobby_ID].room_data["round_animations"])==0: #completed animations
+                    await game_round_start(lobby_ID)
+                else:
+                    await handleanimations(lobby_ID)
+            elif content_split[1] == "setability":
+                await round_operations(lobby_ID) 
         return
     if content_split[0] == "[timer-running]": # game start timer
         chk = content_split[1].split(":") #id + cancel check
@@ -381,21 +388,18 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
         all_rooms[lobby_ID].room_data["timer_state"][timerID]["set"] = [] # clear timer checker
         all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]-=1
         eventlist = ["timer-data"]
-        if(all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]==0):
-            eventlist.append("update-player-list")
-            for player in all_rooms[lobby_ID].room_data["players"]: # game start == initialise game start here
+        if(all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]==0): # game start == initialise game start here
+            for player in all_rooms[lobby_ID].room_data["players"]: 
                 player_tile = all_rooms[lobby_ID].room_data["playerstats"][player].player_data["tilelocation"]
                 all_rooms[lobby_ID].room_data["playerstats"][player].player_data["visibletiles"] = [player_tile]
-                all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"] = False
-                all_rooms[lobby_ID].room_data["ongoing"] = True
                 all_rooms[lobby_ID].room_data["gameboard"][player_tile]["players"].append(player)
+            await game_round_start((lobby_ID))
         await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
             "event":eventlist,
             "data[0]":{
                 "timer-id":timerID,
                 "seconds":all_rooms[lobby_ID].room_data["timer_state"][timerID]["current"]
-            },
-            "data[1]":updateplayerlistjsonreturn(lobby_ID)
+            }
         })
         return
     if content_split[0] == "[request-status-update]": # send updates status to player
@@ -405,7 +409,55 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
             "data[0]":statusjson
         })
         return
-
+async def game_round_start(lobby_ID):
+    all_rooms[lobby_ID].room_data["rounds"]+=1
+    await updateandsendlogstoclient(lobby_ID,all_rooms[lobby_ID].room_data["players"],formatcarddescription(f"format:custom:bold:true###Round {all_rooms[lobby_ID].room_data["rounds"]}"))
+    for player in all_rooms[lobby_ID].room_data["players"]: 
+        all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"] = False
+    eventdata = ["update-player-list"]
+    if not all_rooms[lobby_ID].room_data["ongoing"]: # game is ingoing?? check
+        all_rooms[lobby_ID].room_data["ongoing"] = True
+    else:
+        eventdata.append("new-round-load")
+        content = {}
+        for userID in all_rooms[lobby_ID].room_data["players"]:
+            inverted = True if all_rooms[lobby_ID].room_data["leader"]!=userID else False
+            for tile in all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletiles"]:
+                filtercontent = dict(all_rooms[lobby_ID].room_data["gameboard"][tile])
+                #remove all invisible enemy traps
+                to_remove = [] 
+                for trap_ID in filtercontent["traps"]:
+                    trapcontent = filtercontent["traps"][trap_ID]
+                    trapcontent["source"] = getserversideabilityinfo(trapcontent["identifier"],"name")
+                    if trapcontent["setter"] == userID:
+                        continue
+                    if trapcontent["invisible"]:
+                        to_remove.append(trap_ID)
+                for remove in to_remove:
+                    del filtercontent["traps"][remove]
+                content[tile] = filtercontent
+            
+            # playerabilities = all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["abilities"]
+            # abilityjson = {}
+            # for abilityid in playerabilities:
+            #     c2 = fetchclientsideability(abilityid[0])
+            #     c2["description"] = formatcarddescription(c2["description"])
+            #     c2["cardcooldown"] = abilityid[1]
+            #     abilityjson[abilityid[0]] = c2
+            await deliverMessageToClient([userID],{
+                "event":["user-gameboard-content"],
+                "data[0]":{
+                    "operation":"started",
+                    "visibletiles": content,
+                    "visibletokens": all_rooms[lobby_ID].room_data["playerstats"][userID].player_data["visibletokens"],
+                    "inverted":inverted
+                },
+            })
+    await deliverMessageToClient(all_rooms[lobby_ID].room_data["players"],{
+        "event":eventdata,
+        "data[0]":updateplayerlistjsonreturn(lobby_ID),
+        "data[1]":[]
+    })
 
 all_types = ['utl',"trp","mov",'atk']
 async def round_operations(lobbyID):
@@ -444,7 +496,9 @@ async def handleanimations(lobbyID):
     # animations = trap-set, player-moved, status-applied
     for userID in all_rooms[lobbyID].room_data["players"]:
         all_rooms[lobbyID].room_data["playerstats"][userID].player_data["ready"] = False
-        tosend = all_rooms[lobbyID].room_data["round_animations"][0][userID]
+        tosend = []
+        if userID in all_rooms[lobbyID].room_data["round_animations"][0]:
+            tosend = all_rooms[lobbyID].room_data["round_animations"][0][userID]
         for content in tosend: # send logs
             for txt in content["log_to_add"]:
                 updateplayerlogs(lobbyID,[userID],txt)
@@ -452,6 +506,8 @@ async def handleanimations(lobbyID):
             "event":["user-animations"],
             "data[0]":tosend
         })
+    all_rooms[lobbyID].room_data["round_animations"].pop(0)
+    
     # animationjson = {
     #     "sfx":"",
     #     "animation":"trap-set",
@@ -669,7 +725,7 @@ def update_playerdamagelogs(currentRound,player_data_json,damagelogjson):
     arr.append(damagelogjson)
     player_data_json["damaged_logs"][currentRound] = arr
 
-def updateanimationsjson(lobbyID,animation): # append is true or false,if false = create a new array, true = append to previous animation array
+def updateanimationsjson(lobbyID,animation): # animaiton is an array
     all_rooms[lobbyID].room_data["round_animations"].append(animation)
 
 

@@ -115,8 +115,7 @@ function Game(){
     const [gameboardtiledata,setgameboardtiledata] = useState(null) //json for tile id left and top values for easy access
     const animationsToPlay = useRef(null)
     const [animationpanels,setanimationpanels] = useState(null)
-    const [visibletiledata,setvisibletiledata] = useState(null)
-    const [visibletokensdata,setvisibletokensdata] = useState(null)
+    const [totalanimations,settotalanimations] = useState(null)
     
     const [abilitycardsdata,setabilitycardsdata] = useState(null)
     const [abilitycardsgui,setabilitycardsgui] = useState(null)
@@ -287,7 +286,7 @@ function Game(){
         setstorage("transformy",ytransform_new)
         settransformstring("translate("+xtransform_new+"px,"+ytransform_new+"px)")
     }
-
+        
     async function handlemessage(event,eventdata){
         if(event=="update-player-list"){
             const player_arr = eventdata["players"]
@@ -350,9 +349,8 @@ function Game(){
             const misc = {
                 "operation":eventdata["operation"]
             }
-
-            setvisibletiledata(eventdata["visibletiles"])
-            setvisibletokensdata(eventdata["visibletokens"])
+            
+            //console.log(eventdata)
             var leftval = 0,topval = 0
             var totalwidth = 0,totalheight = 0
             const tiledivarr = []
@@ -370,33 +368,46 @@ function Game(){
                     }
                     const tileid = xsub+"_"+ysub
                     let main_content_div = <div></div>
-                    if(eventdata["operation"]==="started"&&tileid in eventdata["visibletiles"]){
+                    if(eventdata["operation"]==="started"){
                         const iconlist = []
-                        Object.entries(eventdata["visibletiles"][tileid]).map(([key, value]) =>{
-                            if(key=="players"){
-                                for(const player of value){
-                                    if(player===getstorage("userID")){
-                                        document.getElementById("playertilediv").textContent = tileid
-                                        iconlist.push("api-game/get_image/icon-assests|players.png")
-                                    }
-                                    else{
-                                        iconlist.push("api-game/get_image/icon-assests|players-enemy.png")
+                        let visible = false
+                        if(tileid in eventdata["visibletiles"]){
+                            visible = true
+                            Object.entries(eventdata["visibletiles"][tileid]).map(([key, value]) =>{
+                                if(key=="players"){
+                                    for(const player of value){
+                                        if(player===getstorage("userID")){
+                                            document.getElementById("playertilediv").textContent = tileid
+                                            iconlist.push("api-game/get_image/icon-assests|players.png")
+                                        }
+                                        else{
+                                            iconlist.push("api-game/get_image/icon-assests|players-enemy.png")
+                                        }
                                     }
                                 }
-                            }
-                        })
-                        main_content_div = 
-                        <div style={{position:"relative",width:"100%",height:"100%",background:"white",border:"1px solid black"}} className="fade-in">
-                            <div id="icons" style={{display:"flex",position:"absolute",left:"0px",right:"0px",padding:"2px"}}>
-                                {
-                                    Array.from(iconlist).map((value)=>{
-                                        return(
-                                            <img src={serverurl+value} style={{maxWidth:"20px",maxHeight:"20px"}}></img>
-                                        )
-                                    })
+                            })
+                        }
+                        else if(tileid in eventdata["visibletokens"]){
+                            Object.entries(eventdata["visibletokens"][tileid]).map(([key, value]) =>{
+                                if (value["type"]=="traps"){
+                                    iconlist.push("api-game/get_image/icon-assests|traps.png")
                                 }
+                            })
+                        }
+                        if (iconlist.length!=0){ // set icons
+                            main_content_div = 
+                            <div style={{position:"relative",width:"100%",height:"100%",background:visible?"white":"",border:visible?"1px solid black":""}} className="fade-in">
+                                <div id="icons" style={{display:"flex",position:"absolute",left:"0px",right:"0px",padding:"2px"}}>
+                                    {
+                                        Array.from(iconlist).map((value)=>{
+                                            return(
+                                                <img src={serverurl+value} style={{maxWidth:"20px",maxHeight:"20px"}}></img>
+                                            )
+                                        })
+                                    }
+                                </div>
                             </div>
-                        </div>
+                        }
                     }
                     tiledivarr.push(
                         <div key={tileid} style={{position:"absolute",left:leftval,top:topval,width:tilepx+"px",height:tilepx+"px"}}>
@@ -460,14 +471,15 @@ function Game(){
             return
         }
         if(event=="user-animations"){
-            if(eventdata.length===0){
-                socketRef.current.send("[setplayerready]=>animationready")
-                return
-            }
             setabilityselected(null)
             setselectedhighlght(null)
             animationsToPlay.current = eventdata
-            playanimations()
+            if(eventdata.length==0){
+                animationdone()
+            }
+            else{
+                playanimations()
+            }
             return
         }
         if(event=="load-user-status"){
@@ -506,6 +518,9 @@ function Game(){
             setplayerstatus(statusDivArr)
             return
         }
+        if(event=="new-round-load"){ // new round start reset all 
+            lockplayerturn.current = false
+        }
     }
     function playanimations(){
         const toAnimate = []
@@ -528,15 +543,23 @@ function Game(){
                 }
             }
         }
-        setanimationpanels(toAnimate)
+        settotalanimations([0,toAnimate.length])
+        setanimationpanels([...toAnimate])
     }
     function animationdone(){
-        // if(animationsToPlay.current.length===0){
-        //     console.log("DONE")
-        //     return
-        // }
-        // animationsToPlay.current.pop(0)
-        // playanimations()
+        settotalanimations(item=>{
+            if(item==null){
+                socketRef.current.send("[setplayerready]=>animationready")
+                return null
+            }
+            const latestarr = item[0]+=1
+            if(latestarr!=item[1]){
+                return [latestarr,item[1]]
+            }
+            socketRef.current.send("[setplayerready]=>animationready")
+            setanimationpanels(null)
+            return null
+        })
     }
 
     function abilityselectedFunction(abilityFormat){
@@ -581,6 +604,8 @@ function Game(){
             console.log('WebSocket disconnected');
         }};
     },[loaded])
+
+
     useEffect(()=>{
         const highlight_arr = []
         const tilepx = getstorage("tile_px")

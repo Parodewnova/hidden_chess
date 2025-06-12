@@ -411,7 +411,10 @@ async def handlewebsocket_messages(lobby_ID,userID,message):
         return
 async def game_round_start(lobby_ID):
     all_rooms[lobby_ID].room_data["rounds"]+=1
-    await updateandsendlogstoclient(lobby_ID,all_rooms[lobby_ID].room_data["players"],formatcarddescription(f"format:custom:bold:true###Round {all_rooms[lobby_ID].room_data["rounds"]}"))
+
+    round_number = all_rooms[lobby_ID].room_data["rounds"]
+    await updateandsendlogstoclient(lobby_ID,all_rooms[lobby_ID].room_data["players"],formatcarddescription(f"format:custom:bold:true###Round {round_number}")) # 
+    
     for player in all_rooms[lobby_ID].room_data["players"]: 
         all_rooms[lobby_ID].room_data["playerstats"][player].player_data["ready"] = False
     eventdata = ["update-player-list"]
